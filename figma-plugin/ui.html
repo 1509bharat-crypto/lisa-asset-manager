@@ -106,7 +106,7 @@
       margin-bottom: 6px;
     }
 
-    select {
+    select, input[type="text"] {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid #e0e0e0;
@@ -114,6 +114,9 @@
       font-size: 12px;
       background: #fff;
       color: #333;
+    }
+
+    select {
       cursor: pointer;
       appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -121,12 +124,12 @@
       background-position: right 12px center;
     }
 
-    select:focus {
+    select:focus, input[type="text"]:focus {
       outline: none;
       border-color: #18a0fb;
     }
 
-    select:disabled {
+    select:disabled, input[type="text"]:disabled {
       background-color: #f5f5f5;
       color: #999;
       cursor: not-allowed;
@@ -140,6 +143,40 @@
 
     .form-row > div {
       flex: 1;
+    }
+
+    /* Input with button */
+    .input-with-btn {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-with-btn select, .input-with-btn input {
+      flex: 1;
+    }
+
+    .btn-add {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      background: #fff;
+      color: #18a0fb;
+      font-size: 20px;
+      font-weight: 400;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .btn-add:hover {
+      background: #18a0fb;
+      color: #fff;
+      border-color: #18a0fb;
     }
 
     /* Buttons */
@@ -176,6 +213,11 @@
 
     .btn-secondary:hover {
       background: #e8e8e8;
+    }
+
+    .btn-small {
+      padding: 8px 12px;
+      font-size: 11px;
     }
 
     /* Loading State */
@@ -242,6 +284,85 @@
       border-top: 1px solid #e0e0e0;
       margin: 16px 0;
     }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      width: 90%;
+      max-width: 300px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .modal-content h3 {
+      font-size: 14px;
+      margin-bottom: 16px;
+      color: #333;
+    }
+
+    .modal-content input {
+      margin-bottom: 16px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .modal-actions .btn {
+      width: auto;
+      margin: 0;
+    }
+
+    /* Color picker for project */
+    .color-picker {
+      margin-bottom: 16px;
+    }
+
+    .color-picker label {
+      margin-bottom: 8px;
+    }
+
+    .color-options {
+      display: flex;
+      gap: 8px;
+    }
+
+    .color-option {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .color-option:hover {
+      transform: scale(1.1);
+    }
+
+    .color-option.active {
+      border-color: #333;
+    }
   </style>
 </head>
 <body>
@@ -264,16 +385,22 @@
 
     <div style="margin-bottom: 12px;">
       <label for="project">Project</label>
-      <select id="project" disabled>
-        <option value="">Loading projects...</option>
-      </select>
+      <div class="input-with-btn">
+        <select id="project" disabled>
+          <option value="">Loading projects...</option>
+        </select>
+        <button class="btn-add" id="addProjectBtn" title="Create new project">+</button>
+      </div>
     </div>
 
     <div style="margin-bottom: 12px;">
       <label for="folder">Folder (optional)</label>
-      <select id="folder" disabled>
-        <option value="">No folder</option>
-      </select>
+      <div class="input-with-btn">
+        <select id="folder" disabled>
+          <option value="">No folder</option>
+        </select>
+        <button class="btn-add" id="addFolderBtn" title="Create new folder" disabled>+</button>
+      </div>
     </div>
   </div>
 
@@ -310,6 +437,41 @@
   <button class="btn btn-primary" id="uploadBtn" disabled>Upload to Asset Library</button>
   <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
 
+  <!-- New Project Modal -->
+  <div class="modal" id="projectModal">
+    <div class="modal-content">
+      <h3>Create New Project</h3>
+      <input type="text" id="newProjectName" placeholder="Project name..." maxlength="50">
+      <div class="color-picker">
+        <label>Color</label>
+        <div class="color-options">
+          <div class="color-option active" data-color="#667eea" style="background: #667eea;"></div>
+          <div class="color-option" data-color="#f093fb" style="background: #f093fb;"></div>
+          <div class="color-option" data-color="#4facfe" style="background: #4facfe;"></div>
+          <div class="color-option" data-color="#43e97b" style="background: #43e97b;"></div>
+          <div class="color-option" data-color="#fa709a" style="background: #fa709a;"></div>
+          <div class="color-option" data-color="#feca57" style="background: #feca57;"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary btn-small" id="cancelProjectModal">Cancel</button>
+        <button class="btn btn-primary btn-small" id="createProjectBtn">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Folder Modal -->
+  <div class="modal" id="folderModal">
+    <div class="modal-content">
+      <h3>Create New Folder</h3>
+      <input type="text" id="newFolderName" placeholder="Folder name..." maxlength="50">
+      <div class="modal-actions">
+        <button class="btn btn-secondary btn-small" id="cancelFolderModal">Cancel</button>
+        <button class="btn btn-primary btn-small" id="createFolderBtn">Create</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ============================================
     // CONFIGURATION - Add your Supabase credentials here
@@ -323,6 +485,7 @@
     let projects = [];
     let folders = [];
     let exportedFrames = [];
+    let selectedColor = '#667eea';
 
     // DOM Elements
     const selectionPreview = document.getElementById('selectionPreview');
@@ -335,6 +498,18 @@
     const loadingEl = document.getElementById('loading');
     const errorEl = document.getElementById('error');
     const successEl = document.getElementById('success');
+
+    // Modal elements
+    const addProjectBtn = document.getElementById('addProjectBtn');
+    const addFolderBtn = document.getElementById('addFolderBtn');
+    const projectModal = document.getElementById('projectModal');
+    const folderModal = document.getElementById('folderModal');
+    const newProjectName = document.getElementById('newProjectName');
+    const newFolderName = document.getElementById('newFolderName');
+    const createProjectBtn = document.getElementById('createProjectBtn');
+    const createFolderBtn = document.getElementById('createFolderBtn');
+    const cancelProjectModal = document.getElementById('cancelProjectModal');
+    const cancelFolderModal = document.getElementById('cancelFolderModal');
 
     // Initialize
     init();
@@ -389,6 +564,7 @@
     // Load folders for selected project
     async function loadFolders(projectId) {
       folderSelect.innerHTML = '<option value="">No folder</option>';
+      addFolderBtn.disabled = !projectId;
 
       if (!projectId) {
         folderSelect.disabled = true;
@@ -408,6 +584,70 @@
 
       } catch (e) {
         console.error('Failed to load folders:', e);
+      }
+    }
+
+    // Create new project
+    async function createProject() {
+      const name = newProjectName.value.trim();
+      if (!name) {
+        return;
+      }
+
+      try {
+        const result = await supabaseRequest('projects', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: name,
+            color: selectedColor
+          })
+        });
+
+        // Reload projects and select the new one
+        await loadProjects();
+        if (result && result[0]) {
+          projectSelect.value = result[0].id;
+          loadFolders(result[0].id);
+        }
+
+        closeProjectModal();
+        updateUploadButton();
+
+      } catch (e) {
+        console.error('Failed to create project:', e);
+        showError('Failed to create project');
+      }
+    }
+
+    // Create new folder
+    async function createFolder() {
+      const name = newFolderName.value.trim();
+      const projectId = projectSelect.value;
+
+      if (!name || !projectId) {
+        return;
+      }
+
+      try {
+        const result = await supabaseRequest('folders', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: name,
+            project_id: projectId
+          })
+        });
+
+        // Reload folders and select the new one
+        await loadFolders(projectId);
+        if (result && result[0]) {
+          folderSelect.value = result[0].id;
+        }
+
+        closeFolderModal();
+
+      } catch (e) {
+        console.error('Failed to create folder:', e);
+        showError('Failed to create folder');
       }
     }
 
@@ -513,6 +753,34 @@
       uploadBtn.disabled = !hasFrames || !hasProject;
     }
 
+    // Modal functions
+    function openProjectModal() {
+      newProjectName.value = '';
+      selectedColor = '#667eea';
+      document.querySelectorAll('.color-option').forEach(c => {
+        c.classList.toggle('active', c.dataset.color === selectedColor);
+      });
+      projectModal.classList.add('show');
+      newProjectName.focus();
+    }
+
+    function closeProjectModal() {
+      projectModal.classList.remove('show');
+      newProjectName.value = '';
+    }
+
+    function openFolderModal() {
+      if (!projectSelect.value) return;
+      newFolderName.value = '';
+      folderModal.classList.add('show');
+      newFolderName.focus();
+    }
+
+    function closeFolderModal() {
+      folderModal.classList.remove('show');
+      newFolderName.value = '';
+    }
+
     // UI Helpers
     function showLoading(show) {
       loadingEl.classList.toggle('show', show);
@@ -561,6 +829,39 @@
 
     cancelBtn.addEventListener('click', () => {
       parent.postMessage({ pluginMessage: { type: 'cancel' }}, '*');
+    });
+
+    // Modal event listeners
+    addProjectBtn.addEventListener('click', openProjectModal);
+    addFolderBtn.addEventListener('click', openFolderModal);
+    cancelProjectModal.addEventListener('click', closeProjectModal);
+    cancelFolderModal.addEventListener('click', closeFolderModal);
+    createProjectBtn.addEventListener('click', createProject);
+    createFolderBtn.addEventListener('click', createFolder);
+
+    // Enter key for modals
+    newProjectName.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') createProject();
+    });
+    newFolderName.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') createFolder();
+    });
+
+    // Color picker
+    document.querySelectorAll('.color-option').forEach(colorBtn => {
+      colorBtn.addEventListener('click', (e) => {
+        document.querySelectorAll('.color-option').forEach(c => c.classList.remove('active'));
+        e.target.classList.add('active');
+        selectedColor = e.target.dataset.color;
+      });
+    });
+
+    // Close modals on backdrop click
+    projectModal.addEventListener('click', (e) => {
+      if (e.target === projectModal) closeProjectModal();
+    });
+    folderModal.addEventListener('click', (e) => {
+      if (e.target === folderModal) closeFolderModal();
     });
 
     // Listen for messages from Figma plugin code
