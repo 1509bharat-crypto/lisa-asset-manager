@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      color: #333;
+      background: #fff;
+      padding: 16px;
+    }
+
+    h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #333;
+    }
+
+    .section {
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    /* Selection Preview */
+    .selection-preview {
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 80px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .selection-empty {
+      color: #999;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    .frame-thumb {
+      width: 60px;
+      height: 60px;
+      background: #fff;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .frame-thumb img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .frame-thumb .frame-name {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      font-size: 9px;
+      padding: 2px 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .frame-count {
+      background: #18a0fb;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    /* Form Elements */
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 12px;
+      background: #fff;
+      color: #333;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: #18a0fb;
+    }
+
+    select:disabled {
+      background-color: #f5f5f5;
+      color: #999;
+      cursor: not-allowed;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .form-row > div {
+      flex: 1;
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #18a0fb;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #0d8de5;
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #333;
+      margin-top: 8px;
+    }
+
+    .btn-secondary:hover {
+      background: #e8e8e8;
+    }
+
+    /* Loading State */
+    .loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px;
+      color: #666;
+    }
+
+    .loading.show {
+      display: flex;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #e0e0e0;
+      border-top-color: #18a0fb;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Error State */
+    .error {
+      background: #ffebee;
+      color: #c62828;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    .error.show {
+      display: block;
+    }
+
+    /* Success State */
+    .success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      margin-bottom: 12px;
+      display: none;
+      text-align: center;
+    }
+
+    .success.show {
+      display: block;
+    }
+
+    /* Divider */
+    hr {
+      border: none;
+      border-top: 1px solid #e0e0e0;
+      margin: 16px 0;
+    }
+  </style>
+</head>
+<body>
+  <h2>Asset Library Uploader</h2>
+
+  <div class="error" id="error"></div>
+  <div class="success" id="success"></div>
+
+  <div class="section">
+    <div class="section-title">Selected Frames</div>
+    <div class="selection-preview" id="selectionPreview">
+      <div class="selection-empty">Select frames in Figma to upload</div>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="section">
+    <div class="section-title">Upload To</div>
+
+    <div style="margin-bottom: 12px;">
+      <label for="project">Project</label>
+      <select id="project" disabled>
+        <option value="">Loading projects...</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <label for="folder">Folder (optional)</label>
+      <select id="folder" disabled>
+        <option value="">No folder</option>
+      </select>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="section">
+    <div class="section-title">Export Settings</div>
+
+    <div class="form-row">
+      <div>
+        <label for="format">Format</label>
+        <select id="format">
+          <option value="PNG">PNG</option>
+          <option value="SVG">SVG</option>
+        </select>
+      </div>
+      <div>
+        <label for="scale">Scale</label>
+        <select id="scale">
+          <option value="1">1x</option>
+          <option value="2" selected>2x</option>
+          <option value="3">3x</option>
+          <option value="4">4x</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <span>Uploading...</span>
+  </div>
+
+  <button class="btn btn-primary" id="uploadBtn" disabled>Upload to Asset Library</button>
+  <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+
+  <script>
+    // ============================================
+    // CONFIGURATION - Add your Supabase credentials here
+    // ============================================
+    const SUPABASE_URL = 'https://rnpidqgwztmwybuqzgpf.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucGlkcWd3enRtd3lidXF6Z3BmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTg4MDQsImV4cCI6MjA3OTU3NDgwNH0.CmaJFMadE1gX3uy3ik-SdxxgnPzVfr8D80KFw4U2NAU';
+    // ============================================
+
+    // State
+    let selectedFrames = [];
+    let projects = [];
+    let folders = [];
+    let exportedFrames = [];
+
+    // DOM Elements
+    const selectionPreview = document.getElementById('selectionPreview');
+    const projectSelect = document.getElementById('project');
+    const folderSelect = document.getElementById('folder');
+    const formatSelect = document.getElementById('format');
+    const scaleSelect = document.getElementById('scale');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+    const successEl = document.getElementById('success');
+
+    // Initialize
+    init();
+
+    async function init() {
+      await loadProjects();
+      updateUploadButton();
+    }
+
+    // Supabase API helper
+    async function supabaseRequest(endpoint, options = {}) {
+      const url = `${SUPABASE_URL}/rest/v1/${endpoint}`;
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': options.prefer || 'return=representation'
+      };
+
+      const response = await fetch(url, {
+        ...options,
+        headers: { ...headers, ...options.headers }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      return response.json();
+    }
+
+    // Load projects from Supabase
+    async function loadProjects() {
+      try {
+        projects = await supabaseRequest('projects?order=created_at.desc');
+
+        projectSelect.innerHTML = '<option value="">Select a project...</option>';
+        projects.forEach(p => {
+          const option = document.createElement('option');
+          option.value = p.id;
+          option.textContent = p.name;
+          projectSelect.appendChild(option);
+        });
+        projectSelect.disabled = false;
+
+      } catch (e) {
+        showError('Failed to load projects. Check your Supabase credentials.');
+        console.error(e);
+      }
+    }
+
+    // Load folders for selected project
+    async function loadFolders(projectId) {
+      folderSelect.innerHTML = '<option value="">No folder</option>';
+
+      if (!projectId) {
+        folderSelect.disabled = true;
+        return;
+      }
+
+      try {
+        folders = await supabaseRequest(`folders?project_id=eq.${projectId}&order=created_at.asc`);
+
+        folders.forEach(f => {
+          const option = document.createElement('option');
+          option.value = f.id;
+          option.textContent = f.name;
+          folderSelect.appendChild(option);
+        });
+        folderSelect.disabled = false;
+
+      } catch (e) {
+        console.error('Failed to load folders:', e);
+      }
+    }
+
+    // Upload assets to Supabase
+    async function uploadAssets() {
+      const projectId = projectSelect.value;
+      const folderId = folderSelect.value || null;
+
+      if (!projectId || exportedFrames.length === 0) {
+        showError('Please select a project and frames');
+        return;
+      }
+
+      showLoading(true);
+      hideError();
+      hideSuccess();
+
+      let successCount = 0;
+
+      try {
+        for (const frame of exportedFrames) {
+          const asset = {
+            name: frame.name,
+            type: frame.type,
+            size: frame.size,
+            data: frame.data,
+            project_id: projectId,
+            folder_id: folderId
+          };
+
+          await supabaseRequest('assets', {
+            method: 'POST',
+            body: JSON.stringify(asset)
+          });
+
+          successCount++;
+        }
+
+        showSuccess(`${successCount} asset(s) uploaded successfully!`);
+
+        // Notify Figma and close after delay
+        parent.postMessage({ pluginMessage: {
+          type: 'notify',
+          message: `${successCount} asset(s) uploaded to Asset Library!`
+        }}, '*');
+
+        setTimeout(() => {
+          parent.postMessage({ pluginMessage: { type: 'close', message: 'Upload complete!' }}, '*');
+        }, 1500);
+
+      } catch (e) {
+        showError('Failed to upload assets. Please try again.');
+        console.error(e);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // Update selection preview
+    function updateSelectionPreview(frames) {
+      selectedFrames = frames;
+
+      if (frames.length === 0) {
+        selectionPreview.innerHTML = '<div class="selection-empty">Select frames in Figma to upload</div>';
+      } else {
+        selectionPreview.innerHTML = '';
+
+        // Show up to 4 thumbnails
+        const showFrames = frames.slice(0, 4);
+        showFrames.forEach(frame => {
+          const thumb = document.createElement('div');
+          thumb.className = 'frame-thumb';
+
+          // Convert byte array to base64 image
+          const bytes = new Uint8Array(frame.thumbnail);
+          let binary = '';
+          bytes.forEach(b => binary += String.fromCharCode(b));
+          const base64 = btoa(binary);
+
+          thumb.innerHTML = `
+            <img src="data:image/png;base64,${base64}" alt="${frame.name}">
+            <div class="frame-name">${frame.name}</div>
+          `;
+          selectionPreview.appendChild(thumb);
+        });
+
+        // Show count if more than 4
+        if (frames.length > 4) {
+          const more = document.createElement('div');
+          more.className = 'frame-count';
+          more.textContent = `+${frames.length - 4} more`;
+          selectionPreview.appendChild(more);
+        }
+      }
+
+      updateUploadButton();
+    }
+
+    // Update upload button state
+    function updateUploadButton() {
+      const hasFrames = selectedFrames.length > 0;
+      const hasProject = projectSelect.value !== '';
+      uploadBtn.disabled = !hasFrames || !hasProject;
+    }
+
+    // UI Helpers
+    function showLoading(show) {
+      loadingEl.classList.toggle('show', show);
+      uploadBtn.style.display = show ? 'none' : 'block';
+    }
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.add('show');
+    }
+
+    function hideError() {
+      errorEl.classList.remove('show');
+    }
+
+    function showSuccess(msg) {
+      successEl.textContent = msg;
+      successEl.classList.add('show');
+    }
+
+    function hideSuccess() {
+      successEl.classList.remove('show');
+    }
+
+    // Event Listeners
+    projectSelect.addEventListener('change', (e) => {
+      loadFolders(e.target.value);
+      updateUploadButton();
+    });
+
+    formatSelect.addEventListener('change', (e) => {
+      // Disable scale for SVG
+      scaleSelect.disabled = e.target.value === 'SVG';
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      // First export the frames
+      parent.postMessage({ pluginMessage: {
+        type: 'export-frames',
+        options: {
+          format: formatSelect.value,
+          scale: parseFloat(scaleSelect.value)
+        }
+      }}, '*');
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      parent.postMessage({ pluginMessage: { type: 'cancel' }}, '*');
+    });
+
+    // Listen for messages from Figma plugin code
+    window.onmessage = async (event) => {
+      const msg = event.data.pluginMessage;
+
+      if (msg.type === 'selection-update') {
+        if (msg.error) {
+          showError(msg.error);
+        } else {
+          hideError();
+        }
+        updateSelectionPreview(msg.frames);
+      }
+
+      if (msg.type === 'export-complete') {
+        exportedFrames = msg.frames;
+        await uploadAssets();
+      }
+
+      if (msg.type === 'export-error') {
+        showError(msg.error);
+        showLoading(false);
+      }
+    };
+  </script>
+</body>
+</html>

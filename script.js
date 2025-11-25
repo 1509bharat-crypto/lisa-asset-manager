@@ -7,20 +7,30 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'im
 // === State Management ===
 let assets = [];
 let searchQuery = '';
+let selectedCategory = 'icons'; // Default to icons
 
 // === DOM Elements ===
 const elements = {
-    uploadArea: document.getElementById('uploadArea'),
-    fileInput: document.getElementById('fileInput'),
-    uploadBtn: document.getElementById('uploadBtn'),
+    // Icons upload
+    uploadAreaIcons: document.getElementById('uploadAreaIcons'),
+    fileInputIcons: document.getElementById('fileInputIcons'),
+    uploadBtnIcons: document.getElementById('uploadBtnIcons'),
+    uploadSectionIcons: document.getElementById('uploadSectionIcons'),
+
+    // Logos upload
+    uploadAreaLogos: document.getElementById('uploadAreaLogos'),
+    fileInputLogos: document.getElementById('fileInputLogos'),
+    uploadBtnLogos: document.getElementById('uploadBtnLogos'),
+    uploadSectionLogos: document.getElementById('uploadSectionLogos'),
+
+    // Common elements
     searchInput: document.getElementById('searchInput'),
     clearSearch: document.getElementById('clearSearch'),
     assetGrid: document.getElementById('assetGrid'),
     emptyState: document.getElementById('emptyState'),
     toast: document.getElementById('toast'),
     storageUsed: document.getElementById('storageUsed'),
-    assetCount: document.getElementById('assetCount'),
-    clearAllBtn: document.getElementById('clearAllBtn')
+    assetCount: document.getElementById('assetCount')
 };
 
 // === Initialize App ===
@@ -33,56 +43,82 @@ function init() {
 
 // === Event Listeners ===
 function attachEventListeners() {
-    // Upload button click
-    elements.uploadBtn.addEventListener('click', () => elements.fileInput.click());
-
-    // File input change
-    elements.fileInput.addEventListener('change', handleFileSelect);
-
-    // Drag and drop
-    elements.uploadArea.addEventListener('click', (e) => {
-        if (e.target === elements.uploadArea || e.target.closest('.upload-icon, .upload-text, .upload-subtext')) {
-            elements.fileInput.click();
+    // Icons upload
+    elements.uploadBtnIcons.addEventListener('click', () => elements.fileInputIcons.click());
+    elements.fileInputIcons.addEventListener('change', (e) => handleFileSelect(e, 'icons'));
+    elements.uploadAreaIcons.addEventListener('click', (e) => {
+        if (e.target === elements.uploadAreaIcons || e.target.closest('.upload-icon, .upload-text, .upload-subtext')) {
+            elements.fileInputIcons.click();
         }
     });
+    elements.uploadAreaIcons.addEventListener('dragover', handleDragOver);
+    elements.uploadAreaIcons.addEventListener('dragleave', handleDragLeave);
+    elements.uploadAreaIcons.addEventListener('drop', (e) => handleDrop(e, 'icons'));
 
-    elements.uploadArea.addEventListener('dragover', handleDragOver);
-    elements.uploadArea.addEventListener('dragleave', handleDragLeave);
-    elements.uploadArea.addEventListener('drop', handleDrop);
+    // Logos upload
+    elements.uploadBtnLogos.addEventListener('click', () => elements.fileInputLogos.click());
+    elements.fileInputLogos.addEventListener('change', (e) => handleFileSelect(e, 'logos'));
+    elements.uploadAreaLogos.addEventListener('click', (e) => {
+        if (e.target === elements.uploadAreaLogos || e.target.closest('.upload-icon, .upload-text, .upload-subtext')) {
+            elements.fileInputLogos.click();
+        }
+    });
+    elements.uploadAreaLogos.addEventListener('dragover', handleDragOver);
+    elements.uploadAreaLogos.addEventListener('dragleave', handleDragLeave);
+    elements.uploadAreaLogos.addEventListener('drop', (e) => handleDrop(e, 'logos'));
 
     // Search functionality
     elements.searchInput.addEventListener('input', handleSearch);
     elements.clearSearch.addEventListener('click', clearSearch);
 
-    // Clear all button
-    elements.clearAllBtn.addEventListener('click', handleClearAll);
+    // Category tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            selectedCategory = e.target.dataset.category;
+
+            // Update active tab
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            e.target.classList.add('active');
+
+            // Show/hide upload sections
+            if (selectedCategory === 'icons') {
+                elements.uploadSectionIcons.style.display = 'block';
+                elements.uploadSectionLogos.style.display = 'none';
+            } else {
+                elements.uploadSectionIcons.style.display = 'none';
+                elements.uploadSectionLogos.style.display = 'block';
+            }
+
+            renderAssets();
+        });
+    });
 }
 
 // === File Upload Handlers ===
-function handleFileSelect(e) {
+function handleFileSelect(e, category) {
     const files = Array.from(e.target.files);
-    processFiles(files);
+    processFiles(files, category);
     e.target.value = ''; // Reset input
 }
 
 function handleDragOver(e) {
     e.preventDefault();
-    elements.uploadArea.classList.add('drag-over');
+    e.currentTarget.classList.add('drag-over');
 }
 
 function handleDragLeave(e) {
     e.preventDefault();
-    elements.uploadArea.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over');
 }
 
-function handleDrop(e) {
+function handleDrop(e, category) {
     e.preventDefault();
-    elements.uploadArea.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over');
     const files = Array.from(e.dataTransfer.files);
-    processFiles(files);
+    processFiles(files, category);
 }
 
-async function processFiles(files) {
+async function processFiles(files, category) {
     if (files.length === 0) return;
 
     // Filter valid files
@@ -115,13 +151,15 @@ async function processFiles(files) {
     for (const file of validFiles) {
         try {
             const base64 = await fileToBase64(file);
+
             const asset = {
                 id: generateId(),
                 name: file.name,
                 type: file.type,
                 size: file.size,
                 data: base64,
-                uploadDate: new Date().toISOString()
+                uploadDate: new Date().toISOString(),
+                category: category // Use the category passed from upload section
             };
 
             // Check for duplicate names
@@ -241,9 +279,17 @@ function handleClearAll() {
 
 // === Rendering ===
 function renderAssets() {
-    const filteredAssets = searchQuery
-        ? assets.filter(asset => asset.name.toLowerCase().includes(searchQuery))
-        : assets;
+    let filteredAssets = assets;
+
+    // Filter by category (icons or logos)
+    filteredAssets = filteredAssets.filter(asset => asset.category === selectedCategory);
+
+    // Filter by search query
+    if (searchQuery) {
+        filteredAssets = filteredAssets.filter(asset =>
+            asset.name.toLowerCase().includes(searchQuery)
+        );
+    }
 
     elements.assetGrid.innerHTML = '';
 

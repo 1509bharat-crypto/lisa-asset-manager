@@ -1,0 +1,26 @@
+{
+  "name": "asset-library",
+  "version": "2.0.0",
+  "description": "Shared asset library - upload and access images from anywhere",
+  "main": "index.html",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "asset-management",
+    "image-library",
+    "shared-storage",
+    "supabase"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.8"
+  }
+}

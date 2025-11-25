@@ -1,31 +1,56 @@
 # Asset Library
 
-A modern, lightweight web app for managing your image and SVG assets.
+An AI-powered asset management system that automatically organizes your images and SVGs using OpenAI's Vision API.
 
 ## Features
 
-- **Upload Assets**: Drag & drop or browse to upload images and SVGs
-- **Smart Storage**: Real-time storage monitoring with 2MB per-file limit
-- **Real-time Search**: Instant filtering by filename
-- **One-click Download**: Download any asset with a single click
+### 🤖 AI-Powered Organization
+- **Auto-categorization**: Automatically sorts into Logos, Icons, Photos, Illustrations, Screenshots, Diagrams
+- **Smart Tagging**: AI generates 3-8 relevant keywords per asset
+- **Color Detection**: Extracts dominant color palette
+- **AI Descriptions**: Brief summaries of each image
+
+### 🔍 Smart Filtering & Search
+- **Category Filters**: Click to view specific asset types
+- **Tag Filters**: Filter by AI-generated tags
+- **Enhanced Search**: Search by name, tags, or description
+- **Combined Filters**: Mix categories, tags, and search
+
+### 💎 Core Features
+- **Drag & Drop Upload**: Easy bulk uploads
+- **Real-time Storage Monitoring**: 2MB per-file limit with quota tracking
+- **One-click Download**: Export any asset instantly
 - **Dark Theme**: Beautiful black interface optimized for long sessions
-- **Fully Responsive**: Works seamlessly on desktop, tablet, and mobile
-- **No Backend Required**: Runs entirely in your browser using localStorage
+- **Fully Responsive**: Works on desktop, tablet, and mobile
+- **Local Storage**: All assets stored in your browser
 
 ## Demo
 
 [Live Demo](https://yourusername.github.io/asset-library)
 
-## Getting Started
+## Quick Start
 
-1. Clone this repository:
+1. **Get OpenAI API Key**: Visit https://platform.openai.com/api-keys
+
+2. **Configure**:
    ```bash
-   git clone https://github.com/yourusername/asset-library.git
+   cd asset-library
+   npm install
    ```
 
-2. Open `index.html` in your browser - that's it!
+   Add your API key to `.env`:
+   ```env
+   OPENAI_API_KEY=sk-your-key-here
+   ```
 
-No build process, no dependencies, no server required.
+3. **Run**:
+   ```bash
+   npm start
+   ```
+
+4. **Open**: http://localhost:8888
+
+See [SETUP.md](SETUP.md) for detailed instructions.
 
 ## Supported Formats
 
@@ -49,12 +74,16 @@ Works on all modern browsers that support:
 - FileReader API
 - HTML5 drag & drop
 
-## Future Features
+## Roadmap
 
-- Auto-tagging with AI
-- Conversational chat interface
-- Icon generation
-- Logo search from web
+- [x] Auto-tagging with AI ✅
+- [x] Smart categorization ✅
+- [ ] Conversational chat interface
+- [ ] AI icon generation
+- [ ] Web logo search
+- [ ] Batch re-tagging
+- [ ] Custom categories
+- [ ] Cloud storage integration
 
 ## License
 
