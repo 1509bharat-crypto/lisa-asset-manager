@@ -87,11 +87,17 @@ const elements = {
 
 // === Initialize App ===
 async function init() {
+    // Show skeleton loading immediately
+    showDashboardSkeletonLoading();
+    attachEventListeners();
+
+    // Load data
     await loadProjects();
     await loadFolders();
     await loadAssetCounts(); // Load counts only, not full asset data
+
+    // Render actual dashboard
     renderDashboard();
-    attachEventListeners();
     subscribeToChanges();
 }
 
@@ -211,6 +217,16 @@ async function loadAssetCounts() {
 
             if (error) throw error;
             assetCounts[project.id] = count || 0;
+        }
+
+        // Load total storage size (just the size field, not image data)
+        const { data, error } = await supabase
+            .from('assets')
+            .select('size');
+
+        if (!error && data) {
+            const totalSize = data.reduce((sum, asset) => sum + (asset.size || 0), 0);
+            elements.storageUsed.textContent = formatFileSize(totalSize);
         }
     } catch (error) {
         console.error('Error loading asset counts:', error);
@@ -341,6 +357,29 @@ async function showProject(projectId) {
 }
 
 // === Rendering ===
+function showDashboardSkeletonLoading() {
+    elements.projectGrid.innerHTML = '';
+    elements.emptyProjects.classList.add('hidden');
+
+    // Show 6 skeleton project cards
+    for (let i = 0; i < 6; i++) {
+        const skeletonCard = document.createElement('div');
+        skeletonCard.className = 'skeleton-project-card';
+        skeletonCard.innerHTML = `
+            <div class="skeleton-project-header"></div>
+            <div class="skeleton-project-content">
+                <div class="skeleton-project-line"></div>
+                <div class="skeleton-project-line" style="width: 70%;"></div>
+                <div class="skeleton-project-stats">
+                    <div class="skeleton-project-stat"></div>
+                    <div class="skeleton-project-stat"></div>
+                </div>
+            </div>
+        `;
+        elements.projectGrid.appendChild(skeletonCard);
+    }
+}
+
 function renderDashboard() {
     elements.projectGrid.innerHTML = '';
 
