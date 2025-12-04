@@ -13,6 +13,7 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'im
 let projects = [];
 let folders = [];
 let assets = [];
+let assetCounts = {}; // Store asset counts per project for dashboard
 let searchQuery = '';
 let currentProject = null; // Currently viewing project
 let selectedFolder = 'all'; // Current folder filter
@@ -88,9 +89,8 @@ const elements = {
 async function init() {
     await loadProjects();
     await loadFolders();
-    await loadAssets();
+    await loadAssetCounts(); // Load counts only, not full asset data
     renderDashboard();
-    updateStorageInfo();
     attachEventListeners();
     subscribeToChanges();
 }
@@ -200,19 +200,54 @@ async function loadFolders() {
     }
 }
 
-async function loadAssets() {
+async function loadAssetCounts() {
     try {
-        const { data, error } = await supabase
+        // Load only counts per project, not the actual asset data
+        for (const project of projects) {
+            const { count, error } = await supabase
+                .from('assets')
+                .select('*', { count: 'exact', head: true })
+                .eq('project_id', project.id);
+
+            if (error) throw error;
+            assetCounts[project.id] = count || 0;
+        }
+    } catch (error) {
+        console.error('Error loading asset counts:', error);
+    }
+}
+
+async function loadAssets(projectId = null) {
+    try {
+        let query = supabase
             .from('assets')
             .select('*')
-            .order('upload_date', { ascending: false });
+            .order('upload_date', { ascending: false })
+            .limit(200); // Limit to 200 assets max to prevent timeout
+
+        // Only load assets for specific project to avoid timeout
+        if (projectId) {
+            query = query.eq('project_id', projectId);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
-        assets = data || [];
+
+        if (projectId) {
+            // Replace assets for this project only
+            assets = assets.filter(a => a.project_id !== projectId).concat(data || []);
+            // Update count for this project
+            assetCounts[projectId] = data?.length || 0;
+        } else {
+            assets = data || [];
+        }
     } catch (error) {
         console.error('Error loading assets:', error);
         showToast('Error loading assets from database', 'error');
-        assets = [];
+        if (!projectId) {
+            assets = [];
+        }
     }
 }
 
@@ -251,11 +286,11 @@ function subscribeToChanges() {
         .on('postgres_changes',
             { event: '*', schema: 'public', table: 'assets' },
             async () => {
-                await loadAssets();
                 if (currentProject) {
+                    await loadAssets(currentProject.id);
                     renderAssets();
+                    updateStorageInfo();
                 }
-                updateStorageInfo();
             }
         )
         .subscribe();
@@ -278,7 +313,7 @@ function showDashboard() {
     renderDashboard();
 }
 
-function showProject(projectId) {
+async function showProject(projectId) {
     const project = projects.find(p => p.id === projectId);
     if (!project) return;
 
@@ -295,7 +330,14 @@ function showProject(projectId) {
     elements.searchInput.value = '';
 
     renderFolders();
+
+    // Show skeleton loading while assets load
+    showSkeletonLoading();
+
+    // Load assets for this project only
+    await loadAssets(projectId);
     renderAssets();
+    updateStorageInfo();
 }
 
 // === Rendering ===
@@ -316,7 +358,7 @@ function renderDashboard() {
 }
 
 function createProjectCard(project) {
-    const projectAssets = assets.filter(a => a.project_id === project.id);
+    const assetCount = assetCounts[project.id] || 0;
     const projectFolders = folders.filter(f => f.project_id === project.id);
 
     const card = document.createElement('div');
@@ -336,7 +378,7 @@ function createProjectCard(project) {
                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
                     <polyline points="21 15 16 10 5 21"></polyline>
                 </svg>
-                <span>${projectAssets.length} assets</span>
+                <span>${assetCount} assets</span>
             </div>
             <div class="project-stat">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -443,6 +485,29 @@ function renderFolders() {
 
         elements.folderChips.appendChild(chip);
     });
+}
+
+function showSkeletonLoading() {
+    if (!currentProject) return;
+
+    elements.assetGrid.innerHTML = '';
+    elements.emptyAssets.classList.add('hidden');
+    elements.assetCount.textContent = '';
+
+    // Show 12 skeleton cards directly in the grid
+    for (let i = 0; i < 12; i++) {
+        const skeletonCard = document.createElement('div');
+        skeletonCard.className = 'skeleton-card';
+        skeletonCard.innerHTML = `
+            <div class="skeleton-image"></div>
+            <div class="skeleton-content">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-line tiny"></div>
+            </div>
+        `;
+        elements.assetGrid.appendChild(skeletonCard);
+    }
 }
 
 function renderAssets() {
@@ -648,7 +713,8 @@ async function deleteProject(projectId) {
             showToast('Project deleted', 'success');
             await loadProjects();
             await loadFolders();
-            await loadAssets();
+            // Clear assets since we're going back to dashboard
+            assets = assets.filter(a => a.project_id !== projectId);
             renderDashboard();
         } catch (error) {
             console.error('Error deleting project:', error);
@@ -714,7 +780,9 @@ async function deleteFolder(folderId) {
             showToast('Folder deleted', 'success');
             selectedFolder = 'all';
             await loadFolders();
-            await loadAssets();
+            if (currentProject) {
+                await loadAssets(currentProject.id);
+            }
             renderFolders();
             renderAssets();
         } catch (error) {
@@ -864,11 +932,11 @@ async function uploadFiles() {
 
     if (successCount > 0) {
         showToast(`${successCount} asset(s) uploaded successfully`, 'success');
-        await loadAssets();
-        if (currentProject) {
+        if (currentProject && currentProject.id === projectId) {
+            await loadAssets(projectId);
             renderAssets();
+            updateStorageInfo();
         }
-        updateStorageInfo();
         closeUploadModal();
     }
 }
@@ -897,9 +965,11 @@ async function deleteAsset(id) {
             if (error) throw error;
 
             showToast('Asset deleted', 'success');
-            await loadAssets();
-            renderAssets();
-            updateStorageInfo();
+            if (currentProject) {
+                await loadAssets(currentProject.id);
+                renderAssets();
+                updateStorageInfo();
+            }
         } catch (error) {
             console.error('Error deleting asset:', error);
             showToast('Error deleting asset', 'error');
@@ -1008,7 +1078,9 @@ async function bulkDelete() {
 
             showToast(`${selectedAssets.size} asset(s) deleted successfully`, 'success');
             selectedAssets.clear();
-            await loadAssets();
+            if (currentProject) {
+                await loadAssets(currentProject.id);
+            }
             updateSelectedCount();
             renderAssets();
             updateStorageInfo();

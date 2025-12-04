@@ -47,3 +47,6 @@ yarn.lock
 # Build output
 dist/
 .vite/
+
+# Local Netlify folder
+.netlify
