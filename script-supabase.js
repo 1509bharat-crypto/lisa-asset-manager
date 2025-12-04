@@ -54,6 +54,7 @@ const elements = {
     selectedCount: document.getElementById('selectedCount'),
     selectAllBtn: document.getElementById('selectAllBtn'),
     deselectAllBtn: document.getElementById('deselectAllBtn'),
+    bulkDownloadBtn: document.getElementById('bulkDownloadBtn'),
     bulkDeleteBtn: document.getElementById('bulkDeleteBtn'),
     cancelSelectionBtn: document.getElementById('cancelSelectionBtn'),
 
@@ -133,6 +134,7 @@ function attachEventListeners() {
     elements.selectionModeBtn.addEventListener('click', toggleSelectionMode);
     elements.selectAllBtn.addEventListener('click', selectAll);
     elements.deselectAllBtn.addEventListener('click', deselectAll);
+    elements.bulkDownloadBtn.addEventListener('click', bulkDownload);
     elements.bulkDeleteBtn.addEventListener('click', bulkDelete);
     elements.cancelSelectionBtn.addEventListener('click', exitSelectionMode);
 
@@ -1015,6 +1017,41 @@ async function bulkDelete() {
             showToast('Error deleting assets', 'error');
         }
     }
+}
+
+async function bulkDownload() {
+    if (selectedAssets.size === 0) {
+        showToast('No assets selected', 'error');
+        return;
+    }
+
+    const assetIds = Array.from(selectedAssets);
+    const selectedAssetsList = assets.filter(a => assetIds.includes(a.id));
+
+    showToast(`Downloading ${selectedAssetsList.length} asset(s)...`, 'info');
+
+    // Download each asset with a small delay to prevent browser blocking
+    for (let i = 0; i < selectedAssetsList.length; i++) {
+        const asset = selectedAssetsList[i];
+
+        setTimeout(() => {
+            try {
+                const link = document.createElement('a');
+                link.href = asset.data;
+                link.download = asset.name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                console.error('Error downloading asset:', asset.name, error);
+            }
+        }, i * 300); // 300ms delay between each download
+    }
+
+    // Show success after all downloads are triggered
+    setTimeout(() => {
+        showToast(`${selectedAssetsList.length} asset(s) downloaded`, 'success');
+    }, selectedAssetsList.length * 300 + 500);
 }
 
 // === Search ===

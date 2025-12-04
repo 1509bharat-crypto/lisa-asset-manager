@@ -113,13 +113,10 @@ async function handleExportFrames(options) {
         let mimeType;
 
         if (format === 'SVG') {
-          // SVG is text, convert bytes to string then base64
-          const svgString = String.fromCharCode.apply(null, bytes);
-          base64 = btoa(svgString);
+          base64 = figma.base64Encode(bytes);
           mimeType = 'image/svg+xml';
         } else {
-          // PNG is binary, convert to base64
-          base64 = bytesToBase64(bytes);
+          base64 = figma.base64Encode(bytes);
           mimeType = 'image/png';
         }
 
@@ -148,14 +145,6 @@ async function handleExportFrames(options) {
   });
 }
 
-// Convert Uint8Array to base64
-function bytesToBase64(bytes) {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
 
 // Listen for selection changes in Figma
 figma.on('selectionchange', () => {
