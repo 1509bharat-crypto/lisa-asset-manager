@@ -433,6 +433,13 @@ const apiRoutes: Record<string, RouteHandler> = {
                 updates.push(`folder_id = $${paramIndex++}`);
                 values.push(body.folder_id);
             }
+            if (body.project_id !== undefined) {
+                if (!isValidUUID(body.project_id as string)) {
+                    return sendError(res, 'Invalid project_id format', 400);
+                }
+                updates.push(`project_id = $${paramIndex++}`);
+                values.push(body.project_id);
+            }
 
             if (updates.length === 0) {
                 return sendError(res, 'No fields to update', 400);

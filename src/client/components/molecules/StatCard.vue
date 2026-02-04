@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AppIcon } from '../atoms'
 
-type IconName = 'folder' | 'image' | 'upload' | 'home'
+type IconName = 'folder' | 'image' | 'upload' | 'home' | 'storage'
 
 interface Props {
   label: string
@@ -15,7 +15,7 @@ defineProps<Props>()
 <template>
   <div class="stat-card">
     <div class="stat-card__icon">
-      <AppIcon :name="icon" :size="20" />
+      <AppIcon :name="icon" :size="24" />
     </div>
     <div class="stat-card__content">
       <div class="stat-card__value">{{ value }}</div>
@@ -28,22 +28,22 @@ defineProps<Props>()
 .stat-card {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
 }
 
 .stat-card__icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: var(--color-primary-light);
-  border-radius: var(--radius-md);
-  color: var(--color-primary);
+  width: 48px;
+  height: 48px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  color: var(--accent-color);
 }
 
 .stat-card__content {
@@ -52,13 +52,13 @@ defineProps<Props>()
 }
 
 .stat-card__value {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .stat-card__label {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 </style>

@@ -28,6 +28,7 @@ const emit = defineEmits<{
   preview: [asset: Asset]
   rename: [asset: Asset]
   setAsCover: [asset: Asset]
+  move: [asset: Asset]
 }>()
 
 const getFolder = (folderId: string | null): Folder | null => {
@@ -38,6 +39,8 @@ const getFolder = (folderId: string | null): Folder | null => {
 const isSelected = (id: string): boolean => {
   return props.selectedIds.includes(id)
 }
+
+const hasSelection = computed(() => props.selectedIds.length > 0)
 
 const gridStyle = computed(() => ({
   '--grid-min-size': `${props.gridSize}px`
@@ -74,12 +77,14 @@ const gridStyle = computed(() => ({
         :folder="getFolder(asset.folder_id)"
         :selectable="selectable"
         :selected="isSelected(asset.id)"
+        :show-checkbox="hasSelection"
         @click="emit('preview', asset)"
         @select="emit('select', asset.id)"
         @delete="emit('delete', asset.id)"
         @download="emit('download', asset)"
         @rename="emit('rename', asset)"
         @set-as-cover="emit('setAsCover', asset)"
+        @move="emit('move', asset)"
       />
     </div>
   </div>

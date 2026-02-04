@@ -11,7 +11,8 @@ import {
   CreateFolderModal,
   RenameAssetModal,
   RenameFolderModal,
-  AssetPreviewModal
+  MoveAssetModal,
+  BulkMoveModal
 } from '../components/organisms'
 import { useProjects, useAssets, useFolders } from '../composables'
 import type { Asset, Folder } from '../types'
@@ -21,7 +22,7 @@ const router = useRouter()
 
 const projectId = computed(() => route.params.projectId as string)
 
-const { getProjectById, fetchProjects, setProjectCover } = useProjects()
+const { projects, getProjectById, fetchProjects, setProjectCover } = useProjects()
 const {
   assets,
   allAssets,
@@ -52,13 +53,14 @@ const totalAssetCount = computed(() => allAssets.value.length)
 
 const showUploadModal = ref(false)
 const showCreateFolderModal = ref(false)
-const previewAsset = ref<Asset | null>(null)
 const assetToRename = ref<Asset | null>(null)
 const folderToRename = ref<Folder | null>(null)
 const folderToDelete = ref<string | null>(null)
 const selectedAssets = ref<string[]>([])
 const assetToDelete = ref<string | null>(null)
 const showBulkDeleteConfirm = ref(false)
+const showBulkMoveModal = ref(false)
+const assetToMove = ref<Asset | null>(null)
 const searchQuery = ref('')
 // Grid size: smaller value = more icons per row
 // Range designed for ~5 to ~8 icons per row depending on viewport
@@ -162,10 +164,6 @@ const handleFolderRename = async (newName: string) => {
   }
 }
 
-const handleAssetClick = (asset: Asset) => {
-  previewAsset.value = asset
-}
-
 const handleAssetSelect = (id: string, selected: boolean) => {
   if (selected) {
     if (!selectedAssets.value.includes(id)) {
@@ -180,7 +178,6 @@ const handleDeleteAsset = async () => {
   if (assetToDelete.value) {
     await deleteAsset(assetToDelete.value)
     assetToDelete.value = null
-    previewAsset.value = null
   }
 }
 
@@ -190,6 +187,58 @@ const handleBulkDelete = async () => {
     selectedAssets.value = []
     showBulkDeleteConfirm.value = false
   }
+}
+
+const handleBulkDownload = async () => {
+  const selectedAssetObjects = allAssets.value.filter(a => selectedAssets.value.includes(a.id))
+  if (selectedAssetObjects.length === 0) return
+
+  // Single file - just download directly
+  if (selectedAssetObjects.length === 1) {
+    const asset = selectedAssetObjects[0]
+    const link = document.createElement('a')
+    link.href = asset.data
+    link.download = asset.name
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    return
+  }
+
+  // Multiple files - create zip
+  const JSZip = (await import('jszip')).default
+  const zip = new JSZip()
+
+  // Add each asset to the zip
+  for (const asset of selectedAssetObjects) {
+    // Convert data URL to blob
+    const response = await fetch(asset.data)
+    const blob = await response.blob()
+    zip.file(asset.name, blob)
+  }
+
+  // Generate and download the zip
+  const zipBlob = await zip.generateAsync({ type: 'blob' })
+  const url = URL.createObjectURL(zipBlob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${project.value?.name || 'assets'}-${selectedAssetObjects.length}-files.zip`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+const handleBulkMove = async (newProjectId: string, newFolderId: string | null) => {
+  const { api } = await import('../services/api')
+  // Move each selected asset
+  for (const assetId of selectedAssets.value) {
+    await api.moveAsset(assetId, newProjectId, newFolderId)
+  }
+  // Re-fetch and clear selection
+  await fetchAssets(projectId.value)
+  selectedAssets.value = []
+  showBulkMoveModal.value = false
 }
 
 const handleDownload = (asset: Asset) => {
@@ -211,6 +260,16 @@ const handleRename = async (newName: string) => {
 
 const handleSetAsCover = async (asset: Asset) => {
   await setProjectCover(projectId.value, asset.id, asset.data)
+}
+
+const handleMoveAsset = async (assetId: string, newProjectId: string, newFolderId: string | null) => {
+  const { api } = await import('../services/api')
+  const result = await api.moveAsset(assetId, newProjectId, newFolderId)
+  if (!result.error) {
+    // Re-fetch assets to reflect the change
+    await fetchAssets(projectId.value)
+  }
+  assetToMove.value = null
 }
 </script>
 
@@ -252,8 +311,17 @@ const handleSetAsCover = async (asset: Asset) => {
           <div v-if="selectedAssets.length > 0" class="assets-view__bulk-actions">
             <span>{{ selectedAssets.length }} selected</span>
             <button @click="selectedAssets = []">Clear</button>
+            <button @click="handleBulkDownload">
+              <AppIcon name="download" :size="14" />
+              Download
+            </button>
+            <button @click="showBulkMoveModal = true">
+              <AppIcon name="move" :size="14" />
+              Move
+            </button>
             <button class="danger" @click="showBulkDeleteConfirm = true">
-              Delete Selected
+              <AppIcon name="trash" :size="14" />
+              Delete
             </button>
           </div>
           <div v-else class="assets-view__spacer"></div>
@@ -287,12 +355,14 @@ const handleSetAsCover = async (asset: Asset) => {
           :grid-size="gridSize"
           :loading="loading"
           :selected-ids="selectedAssets"
-          @preview="handleAssetClick"
+          selectable
+          @preview="(asset) => handleAssetSelect(asset.id, !selectedAssets.includes(asset.id))"
           @select="(id) => handleAssetSelect(id, !selectedAssets.includes(id))"
           @delete="(id) => { assetToDelete = id }"
           @download="handleDownload"
           @rename="(asset) => { assetToRename = asset }"
           @set-as-cover="handleSetAsCover"
+          @move="(asset) => { assetToMove = asset }"
         />
       </div>
     </main>
@@ -327,12 +397,22 @@ const handleSetAsCover = async (asset: Asset) => {
       @rename="handleFolderRename"
     />
 
-    <AssetPreviewModal
-      v-if="previewAsset"
-      :asset="previewAsset"
-      @close="previewAsset = null"
-      @delete="assetToDelete = $event"
-      @download="handleDownload"
+    <MoveAssetModal
+      v-if="assetToMove"
+      :asset="assetToMove"
+      :projects="[...projects]"
+      :current-project-id="projectId"
+      @close="assetToMove = null"
+      @move="handleMoveAsset"
+    />
+
+    <BulkMoveModal
+      v-if="showBulkMoveModal"
+      :asset-count="selectedAssets.length"
+      :projects="[...projects]"
+      :current-project-id="projectId"
+      @close="showBulkMoveModal = false"
+      @move="handleBulkMove"
     />
 
     <!-- Delete confirmations -->
@@ -479,10 +559,14 @@ const handleSetAsCover = async (asset: Asset) => {
 }
 
 .assets-view__bulk-actions button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
+  color: var(--color-text-primary);
   cursor: pointer;
   font-size: var(--font-size-sm);
   transition: all var(--transition-fast);

@@ -21,7 +21,8 @@ import {
   Info,
   MoreVertical,
   Grid2x2,
-  Grid3x3
+  Grid3x3,
+  Move
 } from 'lucide-vue-next'
 
 type IconName =
@@ -47,6 +48,7 @@ type IconName =
   | 'more-vertical'
   | 'grid-small'
   | 'grid-large'
+  | 'move'
 
 interface Props {
   name: IconName
@@ -79,7 +81,8 @@ const iconMap = {
   info: Info,
   'more-vertical': MoreVertical,
   'grid-small': Grid3x3,
-  'grid-large': Grid2x2
+  'grid-large': Grid2x2,
+  move: Move
 }
 </script>
 

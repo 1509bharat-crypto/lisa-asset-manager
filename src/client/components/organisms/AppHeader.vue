@@ -1,19 +1,15 @@
 <script setup lang="ts">
 import { AppButton, AppIcon } from '../atoms'
-import { SearchBar } from '../molecules'
 
 defineProps<{
   projectName?: string
   showBack?: boolean
-  searchQuery?: string
 }>()
 
 const emit = defineEmits<{
   back: []
-  search: [query: string]
   upload: []
   createProject: []
-  createFolder: []
 }>()
 </script>
 
@@ -28,7 +24,6 @@ const emit = defineEmits<{
         class="app-header__back"
       >
         <AppIcon name="back" :size="20" />
-        Back
       </AppButton>
 
       <h1 class="app-header__title">
@@ -36,26 +31,8 @@ const emit = defineEmits<{
       </h1>
     </div>
 
-    <div class="app-header__center">
-      <SearchBar
-        :model-value="searchQuery || ''"
-        placeholder="Search assets..."
-        @update:model-value="emit('search', $event)"
-      />
-    </div>
-
     <div class="app-header__right">
       <slot name="actions">
-        <AppButton
-          v-if="projectName"
-          variant="secondary"
-          size="sm"
-          @click="emit('createFolder')"
-        >
-          <AppIcon name="folder" :size="16" />
-          New Folder
-        </AppButton>
-
         <AppButton
           v-if="projectName"
           size="sm"
@@ -110,11 +87,6 @@ const emit = defineEmits<{
   text-overflow: ellipsis;
 }
 
-.app-header__center {
-  flex: 1;
-  max-width: 500px;
-}
-
 .app-header__right {
   display: flex;
   align-items: center;
@@ -131,13 +103,6 @@ const emit = defineEmits<{
   .app-header__left {
     order: 1;
     min-width: auto;
-  }
-
-  .app-header__center {
-    order: 3;
-    flex-basis: 100%;
-    max-width: none;
-    margin-top: var(--space-md);
   }
 
   .app-header__right {

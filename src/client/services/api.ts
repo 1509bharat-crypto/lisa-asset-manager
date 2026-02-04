@@ -168,6 +168,17 @@ export const api = {
     })
   },
 
+  async moveAsset(
+    id: string,
+    projectId: string,
+    folderId: string | null
+  ): Promise<ApiResponse<Asset>> {
+    return request<Asset>(`/assets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ project_id: projectId, folder_id: folderId })
+    })
+  },
+
   async searchAssets(
     projectId: string,
     query: string

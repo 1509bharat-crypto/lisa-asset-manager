@@ -9,11 +9,13 @@ interface Props {
   folder?: Folder | null
   selected?: boolean
   selectable?: boolean
+  showCheckbox?: boolean // true when any asset is selected (forces checkbox visibility)
 }
 
 const props = withDefaults(defineProps<Props>(), {
   selected: false,
-  selectable: false
+  selectable: false,
+  showCheckbox: false
 })
 
 const emit = defineEmits<{
@@ -23,6 +25,7 @@ const emit = defineEmits<{
   download: []
   rename: []
   setAsCover: []
+  move: []
 }>()
 
 const showMenu = ref(false)
@@ -48,6 +51,11 @@ const handleDelete = () => {
 
 const handleSetAsCover = () => {
   emit('setAsCover')
+  closeMenu()
+}
+
+const handleMove = () => {
+  emit('move')
   closeMenu()
 }
 
@@ -80,8 +88,12 @@ const formattedType = computed(() => {
     :class="['asset-card', { 'asset-card--selected': selected }]"
     @click="emit('click')"
   >
-    <!-- Selection checkbox -->
-    <div v-if="selectable" class="asset-card__select" @click.stop="emit('select')">
+    <!-- Selection checkbox (visible on hover, or always when any item is selected) -->
+    <div
+      v-if="selectable"
+      :class="['asset-card__select', { 'asset-card__select--visible': showCheckbox || selected }]"
+      @click.stop="emit('select')"
+    >
       <div :class="['asset-card__checkbox', { 'asset-card__checkbox--checked': selected }]">
         <AppIcon v-if="selected" name="check" :size="14" />
       </div>
@@ -132,6 +144,10 @@ const formattedType = computed(() => {
             <AppIcon name="edit" :size="14" />
             <span>Rename</span>
           </button>
+          <button class="asset-card__dropdown-item" @click="handleMove">
+            <AppIcon name="move" :size="14" />
+            <span>Move to...</span>
+          </button>
           <button class="asset-card__dropdown-item asset-card__dropdown-item--danger" @click="handleDelete">
             <AppIcon name="trash" :size="14" />
             <span>Delete</span>
@@ -169,6 +185,13 @@ const formattedType = computed(() => {
   top: var(--space-sm);
   left: var(--space-sm);
   z-index: 10;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.asset-card:hover .asset-card__select,
+.asset-card__select--visible {
+  opacity: 1;
 }
 
 .asset-card__checkbox {

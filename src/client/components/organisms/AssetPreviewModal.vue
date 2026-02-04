@@ -32,7 +32,7 @@ const formatDate = (dateString: string): string => {
 }
 
 const fileExtension = computed(() => {
-  const parts = props.asset.filename.split('.')
+  const parts = props.asset.name.split('.')
   return parts.length > 1 ? parts.pop()?.toUpperCase() : 'FILE'
 })
 </script>
@@ -47,14 +47,14 @@ const fileExtension = computed(() => {
 
         <div class="asset-preview__image-container">
           <img
-            :src="asset.url"
-            :alt="asset.filename"
+            :src="asset.data"
+            :alt="asset.name"
             class="asset-preview__image"
           />
         </div>
 
         <AppCard variant="elevated" padding="lg" class="asset-preview__info">
-          <h2 class="asset-preview__filename">{{ asset.filename }}</h2>
+          <h2 class="asset-preview__filename">{{ asset.name }}</h2>
 
           <div class="asset-preview__meta">
             <div class="asset-preview__meta-item">
@@ -64,28 +64,12 @@ const fileExtension = computed(() => {
 
             <div class="asset-preview__meta-item">
               <span class="asset-preview__meta-label">Size</span>
-              <span class="asset-preview__meta-value">{{ formatFileSize(asset.file_size) }}</span>
-            </div>
-
-            <div class="asset-preview__meta-item">
-              <span class="asset-preview__meta-label">Dimensions</span>
-              <span class="asset-preview__meta-value">
-                {{ asset.width }} × {{ asset.height }}
-              </span>
+              <span class="asset-preview__meta-value">{{ formatFileSize(asset.size) }}</span>
             </div>
 
             <div class="asset-preview__meta-item">
               <span class="asset-preview__meta-label">Uploaded</span>
-              <span class="asset-preview__meta-value">{{ formatDate(asset.created_at) }}</span>
-            </div>
-
-            <div v-if="asset.folders && asset.folders.length" class="asset-preview__meta-item">
-              <span class="asset-preview__meta-label">Folders</span>
-              <div class="asset-preview__folders">
-                <AppBadge v-for="folder in asset.folders" :key="folder" variant="secondary">
-                  {{ folder }}
-                </AppBadge>
-              </div>
+              <span class="asset-preview__meta-value">{{ formatDate(asset.upload_date || asset.created_at) }}</span>
             </div>
           </div>
 
