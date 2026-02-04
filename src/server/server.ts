@@ -677,10 +677,10 @@ function matchRoute(method: string, url: string): RouteMatch | null {
 
 // === Static File Server ===
 function serveStaticFile(req: IncomingMessage, res: ServerResponse): void {
-    // In production: dist-server/server.js serves from ../dist
+    // In production: dist-server/server.js serves from ../dist/client
     // In development: src/server.ts serves from project root
     const staticDir = process.env.NODE_ENV === 'production'
-        ? path.join(__dirname, '..', 'dist')
+        ? path.join(__dirname, '..', 'dist', 'client')
         : path.join(__dirname, '..', '..');
 
     let filePath = req.url === '/' ? '/index.html' : (req.url || '/');
