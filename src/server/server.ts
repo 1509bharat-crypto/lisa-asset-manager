@@ -560,7 +560,7 @@ const apiRoutes: Record<string, RouteHandler> = {
             const dataUrl = `data:${mimeType};base64,${base64}`;
 
             console.log('Logo fetched successfully, size:', imageBuffer.length, 'bytes');
-            sendJson(res, dataUrl);
+            sendJson(res, { data: dataUrl });
         } catch (error) {
             console.error('Error processing logo:', error);
             sendError(res, 'Failed to fetch logo');
