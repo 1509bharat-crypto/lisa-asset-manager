@@ -526,6 +526,48 @@ const apiRoutes: Record<string, RouteHandler> = {
     },
 
     // === AI IMAGE ANALYSIS ===
+    // === LOGO PROCESSING ===
+    'POST /api/logo/process': async (req, res) => {
+        try {
+            const body = await parseBody(req) as { url?: string; name?: string };
+            if (!body.url) {
+                return sendError(res, 'No URL provided', 400);
+            }
+
+            console.log('Fetching logo from:', body.url);
+
+            // Use native fetch (available in Node 18+)
+            const response = await fetch(body.url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; AssetLibrary/1.0)'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            const imageBuffer = Buffer.from(arrayBuffer);
+
+            // Get content type from response or guess from URL
+            let mimeType = response.headers.get('content-type') || 'image/png';
+            // Clean up mime type (remove charset etc)
+            mimeType = mimeType.split(';')[0].trim();
+
+            // Convert to base64 data URL
+            const base64 = imageBuffer.toString('base64');
+            const dataUrl = `data:${mimeType};base64,${base64}`;
+
+            console.log('Logo fetched successfully, size:', imageBuffer.length, 'bytes');
+            sendJson(res, dataUrl);
+        } catch (error) {
+            console.error('Error processing logo:', error);
+            sendError(res, 'Failed to fetch logo');
+        }
+    },
+
+    // === AI IMAGE ANALYSIS ===
     'POST /api/analyze-image': async (req, res) => {
         if (!openai) {
             return sendError(res, 'OpenAI API key not configured', 503);

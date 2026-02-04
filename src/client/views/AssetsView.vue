@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AppSpinner, AppIcon } from '../components/atoms'
+import { AppSpinner, AppIcon, AppButton } from '../components/atoms'
 import { ConfirmDialog, SearchBar } from '../components/molecules'
 import {
   AppHeader,
@@ -12,7 +12,8 @@ import {
   RenameAssetModal,
   RenameFolderModal,
   MoveAssetModal,
-  BulkMoveModal
+  BulkMoveModal,
+  LogoScraperModal
 } from '../components/organisms'
 import { useProjects, useAssets, useFolders } from '../composables'
 import type { Asset, Folder } from '../types'
@@ -62,6 +63,7 @@ const showBulkDeleteConfirm = ref(false)
 const showBulkMoveModal = ref(false)
 const assetToMove = ref<Asset | null>(null)
 const searchQuery = ref('')
+const showLogoScraperModal = ref(false)
 // Grid size: smaller value = more icons per row
 // Range designed for ~5 to ~8 icons per row depending on viewport
 const gridSize = ref(160) // Default - around 6-7 icons per row on typical screen
@@ -271,6 +273,17 @@ const handleMoveAsset = async (assetId: string, newProjectId: string, newFolderI
   }
   assetToMove.value = null
 }
+
+const handleLogoSave = async (dataUrl: string, brandName: string) => {
+  // Convert data URL to File object
+  const response = await fetch(dataUrl)
+  const blob = await response.blob()
+  const file = new File([blob], `${brandName.toLowerCase().replace(/\s+/g, '-')}-logo.png`, { type: 'image/png' })
+
+  // Upload as asset
+  await uploadAssets(projectId.value, [file], selectedFolderId.value)
+  showLogoScraperModal.value = false
+}
 </script>
 
 <template>
@@ -280,7 +293,25 @@ const handleMoveAsset = async (assetId: string, newProjectId: string, newFolderI
       :show-back="true"
       @back="handleBack"
       @upload="showUploadModal = true"
-    />
+    >
+      <template #actions>
+        <AppButton
+          variant="secondary"
+          size="sm"
+          @click="showLogoScraperModal = true"
+        >
+          <AppIcon name="search" :size="16" />
+          Find Logo
+        </AppButton>
+        <AppButton
+          size="sm"
+          @click="showUploadModal = true"
+        >
+          <AppIcon name="upload" :size="16" />
+          Upload
+        </AppButton>
+      </template>
+    </AppHeader>
 
     <main class="assets-view__content">
       <!-- Sidebar with folders -->
@@ -446,6 +477,12 @@ const handleMoveAsset = async (assetId: string, newProjectId: string, newFolderI
       variant="danger"
       @confirm="handleFolderDelete"
       @cancel="folderToDelete = null"
+    />
+
+    <LogoScraperModal
+      v-if="showLogoScraperModal"
+      @close="showLogoScraperModal = false"
+      @save="handleLogoSave"
     />
   </div>
 </template>
