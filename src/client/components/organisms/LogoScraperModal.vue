@@ -7,98 +7,41 @@ const emit = defineEmits<{
   save: [logoUrl: string, brandName: string]
 }>()
 
-const LOGO_PROVIDERS = [
+// Fallback providers when Brandfetch isn't available
+const FALLBACK_PROVIDERS = [
   (d: string) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
   (d: string) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
-  (d: string) => `https://logo.clearbit.com/${d}`,
 ]
 
-const DOMAIN_MAP: Record<string, string> = {
-  "nike": "nike.com",
-  "adidas": "adidas.com",
-  "asics": "asics.com",
-  "new balance": "newbalance.com",
-  "puma": "puma.com",
-  "reebok": "reebok.com",
-  "skechers": "skechers.com",
-  "under armour": "underarmour.com",
-  "lululemon": "lululemon.com",
-  "foot locker": "footlocker.com",
-  "jd sports": "jdsports.com",
-  "decathlon": "decathlon.com",
-  "zalando": "zalando.com",
-  "amazon": "amazon.com",
-  "asos": "asos.com",
-  "about you": "aboutyou.com",
-  "ebay": "ebay.com",
-  "shein": "shein.com",
-  "google": "google.com",
-  "apple": "apple.com",
-  "microsoft": "microsoft.com",
-  "meta": "meta.com",
-  "facebook": "facebook.com",
-  "instagram": "instagram.com",
-  "twitter": "twitter.com",
-  "x": "x.com",
-  "linkedin": "linkedin.com",
-  "spotify": "spotify.com",
-  "netflix": "netflix.com",
-  "disney": "disney.com",
-  "hbo": "hbo.com",
-  "youtube": "youtube.com",
-  "twitch": "twitch.tv",
-  "discord": "discord.com",
-  "slack": "slack.com",
-  "zoom": "zoom.us",
-  "dropbox": "dropbox.com",
-  "notion": "notion.so",
-  "figma": "figma.com",
-  "canva": "canva.com",
-  "adobe": "adobe.com",
-  "stripe": "stripe.com",
-  "paypal": "paypal.com",
-  "visa": "visa.com",
-  "mastercard": "mastercard.com",
-  "samsung": "samsung.com",
-  "sony": "sony.com",
-  "lg": "lg.com",
-  "hp": "hp.com",
-  "dell": "dell.com",
-  "lenovo": "lenovo.com",
-  "intel": "intel.com",
-  "amd": "amd.com",
-  "nvidia": "nvidia.com",
-  "tesla": "tesla.com",
-  "bmw": "bmw.com",
-  "mercedes": "mercedes-benz.com",
-  "audi": "audi.com",
-  "volkswagen": "volkswagen.com",
-  "toyota": "toyota.com",
-  "honda": "honda.com",
-  "ford": "ford.com",
-  "coca cola": "coca-cola.com",
-  "pepsi": "pepsi.com",
-  "mcdonalds": "mcdonalds.com",
-  "starbucks": "starbucks.com",
-  "ikea": "ikea.com",
-  "zara": "zara.com",
-  "h&m": "hm.com",
-  "uniqlo": "uniqlo.com",
-  "gap": "gap.com",
+interface BrandSearchResult {
+  name: string
+  domain: string
+  icon?: string
+  brandId?: string
+}
+
+interface BrandLogo {
+  type: string
+  theme: string
+  formats: { src: string; format: string }[]
 }
 
 interface BrandResult {
   name: string
   domain: string
   logoUrl: string | null
+  logos: BrandLogo[]
   status: 'loading' | 'success' | 'error'
-  providerIndex: number
+  fallbackIndex: number
+  useBrandfetch: boolean
 }
 
 const brandInput = ref('')
 const searchResults = ref<BrandResult[]>([])
 const selectedBrand = ref<string | null>(null)
 const saving = ref(false)
+const searching = ref(false)
+const brandfetchAvailable = ref(true)
 
 const canSave = computed(() => {
   if (!selectedBrand.value) return false
@@ -106,29 +49,145 @@ const canSave = computed(() => {
   return brand?.status === 'success' && brand?.logoUrl !== null
 })
 
-function guessDomain(name: string): string {
-  const lower = name.toLowerCase().trim()
-  if (DOMAIN_MAP[lower]) return DOMAIN_MAP[lower]
-  const cleaned = lower.replace(/[^a-z0-9]/g, '').trim()
-  return cleaned ? `${cleaned}.com` : ''
-}
-
-function searchBrands() {
+async function searchBrands() {
   const text = brandInput.value.trim()
   if (!text) return
 
   const names = text.split(/[\n,;]+/).map(l => l.trim()).filter(l => l.length > 0)
-
-  const newResults: BrandResult[] = names.map(name => ({
-    name,
-    domain: guessDomain(name),
-    logoUrl: null,
-    status: 'loading',
-    providerIndex: 0
-  }))
-
-  searchResults.value = [...searchResults.value, ...newResults]
   brandInput.value = ''
+  searching.value = true
+
+  for (const name of names) {
+    // Add placeholder result
+    const result: BrandResult = {
+      name,
+      domain: '',
+      logoUrl: null,
+      logos: [],
+      status: 'loading',
+      fallbackIndex: 0,
+      useBrandfetch: brandfetchAvailable.value
+    }
+    searchResults.value.push(result)
+
+    try {
+      // Try Brandfetch search first
+      const searchResponse = await fetch(`/api/logo/search?q=${encodeURIComponent(name)}`)
+
+      if (searchResponse.status === 503) {
+        // Brandfetch not configured, use fallback
+        brandfetchAvailable.value = false
+        result.useBrandfetch = false
+        result.domain = guessDomain(name)
+        continue
+      }
+
+      if (!searchResponse.ok) {
+        throw new Error('Search failed')
+      }
+
+      const searchData: BrandSearchResult[] = await searchResponse.json()
+
+      if (searchData.length === 0) {
+        // No results, try fallback with guessed domain
+        result.useBrandfetch = false
+        result.domain = guessDomain(name)
+        continue
+      }
+
+      // Use first result
+      const firstResult = searchData[0]
+      result.domain = firstResult.domain
+      result.name = firstResult.name || name
+
+      // Fetch brand details for logos
+      const brandResponse = await fetch(`/api/logo/brand/${encodeURIComponent(firstResult.domain)}`)
+
+      if (!brandResponse.ok) {
+        throw new Error('Brand fetch failed')
+      }
+
+      const brandData = await brandResponse.json()
+
+      // Extract logos - prefer logo type, then icon, in light theme, PNG format
+      const logos = brandData.logos || []
+      result.logos = logos
+
+      // Find best logo: prefer 'logo' type with 'light' theme
+      let bestLogo: string | null = null
+
+      // First try: logo type, light theme, PNG
+      for (const logo of logos) {
+        if (logo.type === 'logo' && logo.theme === 'light') {
+          const pngFormat = logo.formats?.find((f: { format: string }) => f.format === 'png')
+          if (pngFormat) {
+            bestLogo = pngFormat.src
+            break
+          }
+          const svgFormat = logo.formats?.find((f: { format: string }) => f.format === 'svg')
+          if (svgFormat) {
+            bestLogo = svgFormat.src
+            break
+          }
+        }
+      }
+
+      // Second try: any logo type, PNG
+      if (!bestLogo) {
+        for (const logo of logos) {
+          if (logo.type === 'logo') {
+            const pngFormat = logo.formats?.find((f: { format: string }) => f.format === 'png')
+            if (pngFormat) {
+              bestLogo = pngFormat.src
+              break
+            }
+          }
+        }
+      }
+
+      // Third try: icon type
+      if (!bestLogo) {
+        for (const logo of logos) {
+          if (logo.type === 'icon') {
+            const pngFormat = logo.formats?.find((f: { format: string }) => f.format === 'png')
+            if (pngFormat) {
+              bestLogo = pngFormat.src
+              break
+            }
+          }
+        }
+      }
+
+      // Last resort: any format from any logo
+      if (!bestLogo && logos.length > 0) {
+        const firstLogo = logos[0]
+        if (firstLogo.formats?.length > 0) {
+          bestLogo = firstLogo.formats[0].src
+        }
+      }
+
+      if (bestLogo) {
+        result.logoUrl = bestLogo
+        result.status = 'success'
+      } else {
+        // Fall back to non-Brandfetch
+        result.useBrandfetch = false
+      }
+
+    } catch (e) {
+      console.error('Brandfetch search failed for', name, e)
+      result.useBrandfetch = false
+      result.domain = guessDomain(name)
+    }
+  }
+
+  searching.value = false
+}
+
+function guessDomain(name: string): string {
+  const lower = name.toLowerCase().trim()
+  const cleaned = lower.replace(/[^a-z0-9]/g, '').trim()
+  return cleaned ? `${cleaned}.com` : ''
 }
 
 function handleImageLoad(result: BrandResult) {
@@ -136,10 +195,18 @@ function handleImageLoad(result: BrandResult) {
 }
 
 function handleImageError(result: BrandResult) {
-  // Try next provider
-  result.providerIndex++
-  if (result.providerIndex < LOGO_PROVIDERS.length) {
-    result.logoUrl = LOGO_PROVIDERS[result.providerIndex](result.domain)
+  if (result.useBrandfetch) {
+    // Brandfetch logo failed, try fallback
+    result.useBrandfetch = false
+    result.logoUrl = null
+    result.fallbackIndex = 0
+    return
+  }
+
+  // Try next fallback provider
+  result.fallbackIndex++
+  if (result.fallbackIndex < FALLBACK_PROVIDERS.length) {
+    result.logoUrl = FALLBACK_PROVIDERS[result.fallbackIndex](result.domain)
   } else {
     result.status = 'error'
     result.logoUrl = null
@@ -147,11 +214,16 @@ function handleImageError(result: BrandResult) {
 }
 
 function getLogoUrl(result: BrandResult): string {
-  if (!result.domain) return ''
+  if (!result.domain && !result.logoUrl) return ''
   if (result.logoUrl) return result.logoUrl
-  // Set initial URL
-  result.logoUrl = LOGO_PROVIDERS[result.providerIndex](result.domain)
-  return result.logoUrl
+
+  // Use fallback provider
+  if (!result.useBrandfetch && result.domain) {
+    result.logoUrl = FALLBACK_PROVIDERS[result.fallbackIndex](result.domain)
+    return result.logoUrl
+  }
+
+  return ''
 }
 
 function selectBrand(name: string) {
@@ -176,7 +248,7 @@ async function handleSave() {
   saving.value = true
 
   try {
-    // Call server endpoint to fetch and process the logo
+    // Call server endpoint to fetch and process the logo (adds white bg, resizes to 165x112)
     const response = await fetch('/api/logo/process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -220,7 +292,8 @@ function clearAll() {
         </div>
 
         <p class="logo-modal__subtitle">
-          Search for brand logos. Selected logo will be processed to 165x112px with white background.
+          Search for brand logos{{ brandfetchAvailable ? ' via Brandfetch' : '' }}.
+          Selected logo will be processed to 165x112px with white background.
         </p>
 
         <!-- Search input -->
@@ -230,10 +303,11 @@ function clearAll() {
             class="logo-modal__input"
             placeholder="Enter brand names (one per line, or comma-separated)&#10;e.g., Nike, Adidas, Puma"
             rows="3"
+            :disabled="searching"
             @keydown.meta.enter="searchBrands"
           />
-          <AppButton @click="searchBrands" :disabled="!brandInput.trim()">
-            Search Logos
+          <AppButton @click="searchBrands" :disabled="!brandInput.trim() || searching" :loading="searching">
+            Search
           </AppButton>
         </div>
 
@@ -262,9 +336,9 @@ function clearAll() {
               </button>
 
               <div class="logo-modal__preview">
-                <AppSpinner v-if="result.status === 'loading' && !result.logoUrl" size="sm" />
+                <AppSpinner v-if="result.status === 'loading' && !getLogoUrl(result)" size="sm" />
                 <img
-                  v-else-if="result.domain"
+                  v-else-if="getLogoUrl(result)"
                   :src="getLogoUrl(result)"
                   :alt="result.name"
                   @load="handleImageLoad(result)"
@@ -275,6 +349,9 @@ function clearAll() {
 
               <div class="logo-modal__brand-name">{{ result.name }}</div>
               <div class="logo-modal__domain">{{ result.domain }}</div>
+              <div v-if="result.useBrandfetch && result.status === 'success'" class="logo-modal__source">
+                via Brandfetch
+              </div>
             </div>
           </div>
         </div>
@@ -283,7 +360,9 @@ function clearAll() {
         <div v-else class="logo-modal__empty">
           <AppIcon name="image" :size="48" class="logo-modal__empty-icon" />
           <p>Enter brand names above to search for logos</p>
-          <p class="logo-modal__empty-hint">Fetches from Clearbit, Google, and DuckDuckGo</p>
+          <p class="logo-modal__empty-hint">
+            {{ brandfetchAvailable ? 'Powered by Brandfetch API' : 'Using Google & DuckDuckGo favicons' }}
+          </p>
         </div>
 
         <!-- Actions -->
@@ -371,6 +450,11 @@ function clearAll() {
   color: var(--color-text-muted);
 }
 
+.logo-modal__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .logo-modal__results {
   margin-bottom: var(--space-lg);
 }
@@ -402,7 +486,7 @@ function clearAll() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -479,6 +563,12 @@ function clearAll() {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   font-family: monospace;
+}
+
+.logo-modal__source {
+  font-size: 10px;
+  color: var(--color-primary);
+  opacity: 0.7;
 }
 
 .logo-modal__empty {
