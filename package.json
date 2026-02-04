@@ -1,26 +1,31 @@
 {
   "name": "asset-library",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Shared asset library - upload and access images from anywhere",
-  "main": "index.html",
-  "type": "module",
+  "main": "server.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server.js"
   },
   "keywords": [
     "asset-management",
     "image-library",
     "shared-storage",
-    "supabase"
+    "railway"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0"
+    "dotenv": "^16.3.1",
+    "openai": "^4.24.0",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "vite": "^5.0.8"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

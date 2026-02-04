@@ -483,10 +483,11 @@
 
   <script>
     // ============================================
-    // CONFIGURATION - Add your Supabase credentials here
+    // CONFIGURATION - Set your Railway API URL here
     // ============================================
-    const SUPABASE_URL = 'https://rnpidqgwztmwybuqzgpf.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucGlkcWd3enRtd3lidXF6Z3BmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTg4MDQsImV4cCI6MjA3OTU3NDgwNH0.CmaJFMadE1gX3uy3ik-SdxxgnPzVfr8D80KFw4U2NAU';
+    // Change this to your Railway deployment URL (e.g., 'https://your-app.railway.app')
+    // Leave empty for local development
+    const API_BASE_URL = '';
     // ============================================
 
     // State
@@ -528,32 +529,32 @@
       updateUploadButton();
     }
 
-    // Supabase API helper
-    async function supabaseRequest(endpoint, options = {}) {
-      const url = `${SUPABASE_URL}/rest/v1/${endpoint}`;
+    // API helper for Railway backend
+    async function apiRequest(endpoint, options = {}) {
+      const url = `${API_BASE_URL}/api${endpoint}`;
       const headers = {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         'Content-Type': 'application/json',
-        'Prefer': options.prefer || 'return=representation'
+        ...options.headers
       };
 
       const response = await fetch(url, {
         ...options,
-        headers: { ...headers, ...options.headers }
+        headers
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        throw new Error(data.error || `API Error: ${response.status}`);
       }
 
-      return response.json();
+      return data;
     }
 
-    // Load projects from Supabase
+    // Load projects from Railway API
     async function loadProjects() {
       try {
-        projects = await supabaseRequest('projects?order=created_at.desc');
+        projects = await apiRequest('/projects');
 
         projectSelect.innerHTML = '<option value="">Select a project...</option>';
         projects.forEach(p => {
@@ -565,7 +566,7 @@
         projectSelect.disabled = false;
 
       } catch (e) {
-        showError('Failed to load projects. Check your Supabase credentials.');
+        showError('Failed to load projects. Check your API connection.');
         console.error(e);
       }
     }
@@ -581,7 +582,8 @@
       }
 
       try {
-        folders = await supabaseRequest(`folders?project_id=eq.${projectId}&order=created_at.asc`);
+        const allFolders = await apiRequest('/folders');
+        folders = allFolders.filter(f => f.project_id === projectId);
 
         folders.forEach(f => {
           const option = document.createElement('option');
@@ -604,7 +606,7 @@
       }
 
       try {
-        const result = await supabaseRequest('projects', {
+        const result = await apiRequest('/projects', {
           method: 'POST',
           body: JSON.stringify({
             name: name,
@@ -614,9 +616,9 @@
 
         // Reload projects and select the new one
         await loadProjects();
-        if (result && result[0]) {
-          projectSelect.value = result[0].id;
-          loadFolders(result[0].id);
+        if (result && result.id) {
+          projectSelect.value = result.id;
+          loadFolders(result.id);
         }
 
         closeProjectModal();
@@ -638,7 +640,7 @@
       }
 
       try {
-        const result = await supabaseRequest('folders', {
+        const result = await apiRequest('/folders', {
           method: 'POST',
           body: JSON.stringify({
             name: name,
@@ -648,8 +650,8 @@
 
         // Reload folders and select the new one
         await loadFolders(projectId);
-        if (result && result[0]) {
-          folderSelect.value = result[0].id;
+        if (result && result.id) {
+          folderSelect.value = result.id;
         }
 
         closeFolderModal();
@@ -660,7 +662,7 @@
       }
     }
 
-    // Upload assets to Supabase
+    // Upload assets to Railway API
     async function uploadAssets() {
       const projectId = projectSelect.value;
       const folderId = folderSelect.value || null;
@@ -678,18 +680,16 @@
 
       try {
         for (const frame of exportedFrames) {
-          const asset = {
-            name: frame.name,
-            type: frame.type,
-            size: frame.size,
-            data: frame.data,
-            project_id: projectId,
-            folder_id: folderId
-          };
-
-          await supabaseRequest('assets', {
+          await apiRequest('/assets', {
             method: 'POST',
-            body: JSON.stringify(asset)
+            body: JSON.stringify({
+              name: frame.name,
+              type: frame.type,
+              size: frame.size,
+              data: frame.data,
+              project_id: projectId,
+              folder_id: folderId
+            })
           });
 
           successCount++;

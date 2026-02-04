@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Data from Supabase</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.info { background: #cce5ff; color: #004085; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #5a6fd6; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 400px;
+        }
+        .progress {
+            background: #e0e0e0;
+            border-radius: 8px;
+            height: 20px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background: #667eea;
+            height: 100%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <h1>📦 Export Data from Supabase</h1>
+
+    <div class="card">
+        <h2>Step 1: Connect to Supabase</h2>
+        <p>Enter your current Supabase credentials:</p>
+        <input type="text" id="supabaseUrl" placeholder="Supabase URL" style="width: 100%; padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd;">
+        <input type="text" id="supabaseKey" placeholder="Supabase Anon Key" style="width: 100%; padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd;">
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connectionStatus"></div>
+    </div>
+
+    <div class="card">
+        <h2>Step 2: Export Data</h2>
+        <p>This will export all your projects, folders, and assets.</p>
+        <button onclick="exportData()" id="exportBtn" disabled>Export All Data</button>
+        <div class="progress" id="progressContainer" style="display: none;">
+            <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+        </div>
+        <div id="exportStatus"></div>
+    </div>
+
+    <div class="card">
+        <h2>Step 3: Download</h2>
+        <p>Download the exported data as JSON files.</p>
+        <button onclick="downloadExport()" id="downloadBtn" disabled>Download Export (JSON)</button>
+        <div id="downloadStatus"></div>
+    </div>
+
+    <div class="card">
+        <h2>Export Preview</h2>
+        <pre id="preview">No data exported yet...</pre>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        let supabase = null;
+        let exportedData = null;
+
+        window.testConnection = async function() {
+            const url = document.getElementById('supabaseUrl').value.trim();
+            const key = document.getElementById('supabaseKey').value.trim();
+            const status = document.getElementById('connectionStatus');
+
+            if (!url || !key) {
+                status.innerHTML = '<div class="status error">Please enter both URL and Key</div>';
+                return;
+            }
+
+            try {
+                supabase = createClient(url, key);
+                const { data, error } = await supabase.from('projects').select('id').limit(1);
+
+                if (error) throw error;
+
+                status.innerHTML = '<div class="status success">✓ Connected successfully!</div>';
+                document.getElementById('exportBtn').disabled = false;
+            } catch (error) {
+                status.innerHTML = `<div class="status error">✗ Connection failed: ${error.message}</div>`;
+                supabase = null;
+            }
+        };
+
+        window.exportData = async function() {
+            if (!supabase) return;
+
+            const status = document.getElementById('exportStatus');
+            const progress = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const preview = document.getElementById('preview');
+
+            progress.style.display = 'block';
+            status.innerHTML = '<div class="status info">Exporting projects...</div>';
+            progressBar.style.width = '10%';
+
+            try {
+                // Export projects
+                const { data: projects, error: projectsError } = await supabase
+                    .from('projects')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+                if (projectsError) throw projectsError;
+
+                progressBar.style.width = '30%';
+                status.innerHTML = `<div class="status info">Exported ${projects.length} projects. Exporting folders...</div>`;
+
+                // Export folders
+                const { data: folders, error: foldersError } = await supabase
+                    .from('folders')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+                if (foldersError) throw foldersError;
+
+                progressBar.style.width = '50%';
+                status.innerHTML = `<div class="status info">Exported ${folders.length} folders. Exporting assets...</div>`;
+
+                // Export assets (this may take a while due to base64 data)
+                const { data: assets, error: assetsError } = await supabase
+                    .from('assets')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+                if (assetsError) throw assetsError;
+
+                progressBar.style.width = '100%';
+
+                exportedData = {
+                    exportedAt: new Date().toISOString(),
+                    source: 'supabase',
+                    projects,
+                    folders,
+                    assets
+                };
+
+                const totalSize = JSON.stringify(exportedData).length;
+                const sizeMB = (totalSize / 1024 / 1024).toFixed(2);
+
+                status.innerHTML = `<div class="status success">
+                    ✓ Export complete!<br>
+                    • ${projects.length} projects<br>
+                    • ${folders.length} folders<br>
+                    • ${assets.length} assets<br>
+                    • Total size: ${sizeMB} MB
+                </div>`;
+
+                preview.textContent = JSON.stringify({
+                    ...exportedData,
+                    assets: exportedData.assets.map(a => ({
+                        ...a,
+                        data: a.data.substring(0, 50) + '... (truncated)'
+                    }))
+                }, null, 2);
+
+                document.getElementById('downloadBtn').disabled = false;
+
+            } catch (error) {
+                status.innerHTML = `<div class="status error">✗ Export failed: ${error.message}</div>`;
+                progress.style.display = 'none';
+            }
+        };
+
+        window.downloadExport = function() {
+            if (!exportedData) return;
+
+            const blob = new Blob([JSON.stringify(exportedData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `asset-library-export-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            document.getElementById('downloadStatus').innerHTML =
+                '<div class="status success">✓ Download started! Save this file for importing to Railway.</div>';
+        };
+
+        // Pre-fill with known credentials if available
+        document.getElementById('supabaseUrl').value = 'https://rnpidqgwztmwybuqzgpf.supabase.co';
+    </script>
+</body>
+</html>

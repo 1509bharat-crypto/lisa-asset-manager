@@ -6,6 +6,6 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["https://*.supabase.co"]
+    "allowedDomains": ["https://*.railway.app", "https://*.up.railway.app"]
   }
 }
