@@ -2,139 +2,53 @@
 
 /**
  * Asset Library Server for Railway
- * Serves static files, provides PostgreSQL API, and OpenAI Vision integration
+ * TypeScript version with proper types and validation
  */
 
-require('dotenv').config();
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { Pool } = require('pg');
+import 'dotenv/config';
+import http, { IncomingMessage, ServerResponse } from 'http';
+import fs from 'fs';
+import path from 'path';
+import { Pool } from 'pg';
+import type { RouteHandler, RouteMatch, RouteParams, QueryParams } from './types';
+import {
+    isValidUUID,
+    isValidColor,
+    validateProjectInput,
+    validateFolderInput,
+    validateAssetInput,
+    validateBulkDeleteInput
+} from './validation';
 
 // Optional OpenAI for image analysis
-let OpenAI;
+let OpenAI: typeof import('openai').default | undefined;
 try {
-    OpenAI = require('openai').OpenAI;
-} catch (e) {
+    OpenAI = require('openai').default;
+} catch {
     console.log('OpenAI package not installed, AI features disabled');
 }
 
-const PORT = process.env.PORT || 8080;
-const HOST = '0.0.0.0';
-
 // === Configuration ===
-const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB max request body
+const PORT = parseInt(process.env.PORT || '8080', 10);
+const HOST = '0.0.0.0';
+const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['*']; // Default to all in dev, set in production
+    : ['*'];
 
-// === Validation Helpers ===
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
-const BASE64_DATA_URL_REGEX = /^data:image\/(jpeg|png|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
-
-function isValidUUID(str) {
-    return typeof str === 'string' && UUID_REGEX.test(str);
-}
-
-function isValidColor(str) {
-    return typeof str === 'string' && HEX_COLOR_REGEX.test(str);
-}
-
-function isValidBase64Image(str) {
-    return typeof str === 'string' && BASE64_DATA_URL_REGEX.test(str);
-}
-
-function sanitizeString(str, maxLength = 255) {
-    if (typeof str !== 'string') return '';
-    return str.trim().slice(0, maxLength);
-}
-
-function validateProjectInput(data) {
-    const errors = [];
-
-    if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
-        errors.push('Name is required');
-    } else if (data.name.length > 100) {
-        errors.push('Name must be 100 characters or less');
-    }
-
-    if (data.description && data.description.length > 500) {
-        errors.push('Description must be 500 characters or less');
-    }
-
-    if (data.color && !isValidColor(data.color)) {
-        errors.push('Invalid color format (use #RRGGBB)');
-    }
-
-    return errors;
-}
-
-function validateFolderInput(data) {
-    const errors = [];
-
-    if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
-        errors.push('Name is required');
-    } else if (data.name.length > 100) {
-        errors.push('Name must be 100 characters or less');
-    }
-
-    if (!data.project_id || !isValidUUID(data.project_id)) {
-        errors.push('Valid project_id is required');
-    }
-
-    if (data.parent_id && !isValidUUID(data.parent_id)) {
-        errors.push('Invalid parent_id format');
-    }
-
-    return errors;
-}
-
-function validateAssetInput(data) {
-    const errors = [];
-
-    if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
-        errors.push('Name is required');
-    } else if (data.name.length > 255) {
-        errors.push('Name must be 255 characters or less');
-    }
-
-    if (!data.type || typeof data.type !== 'string') {
-        errors.push('Type is required');
-    }
-
-    if (!data.project_id || !isValidUUID(data.project_id)) {
-        errors.push('Valid project_id is required');
-    }
-
-    if (data.folder_id && !isValidUUID(data.folder_id)) {
-        errors.push('Invalid folder_id format');
-    }
-
-    if (!data.data || !isValidBase64Image(data.data)) {
-        errors.push('Valid base64 image data is required');
-    }
-
-    if (data.size && (typeof data.size !== 'number' || data.size < 0)) {
-        errors.push('Size must be a positive number');
-    }
-
-    return errors;
-}
-
-// PostgreSQL connection
+// === Database Connection ===
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Initialize OpenAI (optional)
-const openai = process.env.OPENAI_API_KEY && OpenAI ? new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-}) : null;
+// === OpenAI Client ===
+const openai = process.env.OPENAI_API_KEY && OpenAI
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
 
-// MIME types for static files
-const MIME_TYPES = {
+// === MIME Types ===
+const MIME_TYPES: Record<string, string> = {
     '.html': 'text/html',
     '.css': 'text/css',
     '.js': 'application/javascript',
@@ -151,13 +65,13 @@ const MIME_TYPES = {
     '.woff2': 'font/woff2'
 };
 
-// Helper to parse JSON body with size limit
-function parseBody(req) {
+// === Helper Functions ===
+function parseBody(req: IncomingMessage): Promise<unknown> {
     return new Promise((resolve, reject) => {
         let body = '';
         let size = 0;
 
-        req.on('data', chunk => {
+        req.on('data', (chunk: Buffer) => {
             size += chunk.length;
             if (size > MAX_BODY_SIZE) {
                 req.destroy();
@@ -170,7 +84,7 @@ function parseBody(req) {
         req.on('end', () => {
             try {
                 resolve(body ? JSON.parse(body) : {});
-            } catch (e) {
+            } catch {
                 reject(new Error('Invalid JSON'));
             }
         });
@@ -179,32 +93,48 @@ function parseBody(req) {
     });
 }
 
-// Helper to send JSON response
-function sendJson(res, data, status = 200) {
+function sendJson(res: ServerResponse, data: unknown, status = 200): void {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data));
 }
 
-// Helper to send error response
-function sendError(res, message, status = 500) {
+function sendError(res: ServerResponse, message: string, status = 500): void {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: message }));
 }
 
-// API Routes
-const apiRoutes = {
+function getAllowedOrigin(requestOrigin: string | undefined): string {
+    if (ALLOWED_ORIGINS.includes('*')) {
+        return '*';
+    }
+    if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+        return requestOrigin;
+    }
+    for (const allowed of ALLOWED_ORIGINS) {
+        if (allowed.startsWith('*.')) {
+            const domain = allowed.slice(2);
+            if (requestOrigin?.endsWith(domain)) {
+                return requestOrigin;
+            }
+        }
+    }
+    return ALLOWED_ORIGINS[0] || '';
+}
+
+// === API Routes ===
+const apiRoutes: Record<string, RouteHandler> = {
     // Health check
-    'GET /api/health': async (req, res) => {
+    'GET /api/health': async (_req, res) => {
         try {
             await pool.query('SELECT 1');
             sendJson(res, { status: 'ok', database: 'connected' });
-        } catch (error) {
+        } catch {
             sendJson(res, { status: 'error', database: 'disconnected' }, 503);
         }
     },
 
     // === PROJECTS ===
-    'GET /api/projects': async (req, res) => {
+    'GET /api/projects': async (_req, res) => {
         try {
             const { rows } = await pool.query(
                 'SELECT * FROM projects ORDER BY created_at DESC'
@@ -218,19 +148,17 @@ const apiRoutes = {
 
     'POST /api/projects': async (req, res) => {
         try {
-            const data = await parseBody(req);
-            const errors = validateProjectInput(data);
-            if (errors.length > 0) {
-                return sendError(res, errors.join(', '), 400);
+            const body = await parseBody(req);
+            const validation = validateProjectInput(body);
+
+            if (!validation.valid || !validation.data) {
+                return sendError(res, validation.errors.join(', '), 400);
             }
 
-            const name = sanitizeString(data.name, 100);
-            const description = data.description ? sanitizeString(data.description, 500) : null;
-            const color = data.color && isValidColor(data.color) ? data.color : '#667eea';
-
+            const { name, description, color } = validation.data;
             const { rows } = await pool.query(
                 'INSERT INTO projects (name, description, color) VALUES ($1, $2, $3) RETURNING *',
-                [name, description, color]
+                [name, description ?? null, color ?? '#667eea']
             );
             sendJson(res, rows[0], 201);
         } catch (error) {
@@ -239,7 +167,7 @@ const apiRoutes = {
         }
     },
 
-    'DELETE /api/projects/:id': async (req, res, params) => {
+    'DELETE /api/projects/:id': async (_req, res, params) => {
         try {
             if (!isValidUUID(params.id)) {
                 return sendError(res, 'Invalid project ID format', 400);
@@ -258,7 +186,7 @@ const apiRoutes = {
     },
 
     // === FOLDERS ===
-    'GET /api/folders': async (req, res) => {
+    'GET /api/folders': async (_req, res) => {
         try {
             const { rows } = await pool.query(
                 'SELECT * FROM folders ORDER BY created_at ASC'
@@ -272,17 +200,17 @@ const apiRoutes = {
 
     'POST /api/folders': async (req, res) => {
         try {
-            const data = await parseBody(req);
-            const errors = validateFolderInput(data);
-            if (errors.length > 0) {
-                return sendError(res, errors.join(', '), 400);
+            const body = await parseBody(req);
+            const validation = validateFolderInput(body);
+
+            if (!validation.valid || !validation.data) {
+                return sendError(res, validation.errors.join(', '), 400);
             }
 
-            const name = sanitizeString(data.name, 100);
-
+            const { name, project_id, parent_id } = validation.data;
             const { rows } = await pool.query(
                 'INSERT INTO folders (name, project_id, parent_id) VALUES ($1, $2, $3) RETURNING *',
-                [name, data.project_id, data.parent_id || null]
+                [name, project_id, parent_id ?? null]
             );
             sendJson(res, rows[0], 201);
         } catch (error) {
@@ -291,7 +219,7 @@ const apiRoutes = {
         }
     },
 
-    'DELETE /api/folders/:id': async (req, res, params) => {
+    'DELETE /api/folders/:id': async (_req, res, params) => {
         try {
             if (!isValidUUID(params.id)) {
                 return sendError(res, 'Invalid folder ID format', 400);
@@ -310,11 +238,11 @@ const apiRoutes = {
     },
 
     // === ASSETS ===
-    'GET /api/assets': async (req, res, params, query) => {
+    'GET /api/assets': async (_req, res, _params, query) => {
         try {
             let sql = 'SELECT * FROM assets';
-            const values = [];
-            const conditions = [];
+            const values: string[] = [];
+            const conditions: string[] = [];
 
             if (query.project_id) {
                 if (!isValidUUID(query.project_id)) {
@@ -338,13 +266,15 @@ const apiRoutes = {
         }
     },
 
-    'GET /api/assets/counts': async (req, res) => {
+    'GET /api/assets/counts': async (_req, res) => {
         try {
             const { rows } = await pool.query(
                 'SELECT project_id, COUNT(*) as count FROM assets GROUP BY project_id'
             );
-            const counts = {};
-            rows.forEach(row => counts[row.project_id] = parseInt(row.count));
+            const counts: Record<string, number> = {};
+            rows.forEach((row: { project_id: string; count: string }) => {
+                counts[row.project_id] = parseInt(row.count);
+            });
             sendJson(res, counts);
         } catch (error) {
             console.error('Error fetching asset counts:', error);
@@ -352,7 +282,7 @@ const apiRoutes = {
         }
     },
 
-    'GET /api/assets/storage': async (req, res) => {
+    'GET /api/assets/storage': async (_req, res) => {
         try {
             const { rows } = await pool.query(
                 'SELECT COALESCE(SUM(size), 0) as total_size FROM assets'
@@ -366,20 +296,18 @@ const apiRoutes = {
 
     'POST /api/assets': async (req, res) => {
         try {
-            const data = await parseBody(req);
-            const errors = validateAssetInput(data);
-            if (errors.length > 0) {
-                return sendError(res, errors.join(', '), 400);
+            const body = await parseBody(req);
+            const validation = validateAssetInput(body);
+
+            if (!validation.valid || !validation.data) {
+                return sendError(res, validation.errors.join(', '), 400);
             }
 
-            const name = sanitizeString(data.name, 255);
-            const type = sanitizeString(data.type, 50);
-            const size = typeof data.size === 'number' ? Math.max(0, data.size) : 0;
-
+            const { name, type, size, data, project_id, folder_id } = validation.data;
             const { rows } = await pool.query(
                 `INSERT INTO assets (name, type, size, data, project_id, folder_id, upload_date)
                  VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
-                [name, type, size, data.data, data.project_id, data.folder_id || null]
+                [name, type, size, data, project_id, folder_id ?? null]
             );
             sendJson(res, rows[0], 201);
         } catch (error) {
@@ -388,7 +316,7 @@ const apiRoutes = {
         }
     },
 
-    'DELETE /api/assets/:id': async (req, res, params) => {
+    'DELETE /api/assets/:id': async (_req, res, params) => {
         try {
             if (!isValidUUID(params.id)) {
                 return sendError(res, 'Invalid asset ID format', 400);
@@ -408,22 +336,14 @@ const apiRoutes = {
 
     'POST /api/assets/bulk-delete': async (req, res) => {
         try {
-            const { ids } = await parseBody(req);
-            if (!ids || !Array.isArray(ids) || ids.length === 0) {
-                return sendError(res, 'ids array is required', 400);
+            const body = await parseBody(req);
+            const validation = validateBulkDeleteInput(body);
+
+            if (!validation.valid || !validation.ids) {
+                return sendError(res, validation.errors.join(', '), 400);
             }
 
-            // Validate all IDs are valid UUIDs
-            const invalidIds = ids.filter(id => !isValidUUID(id));
-            if (invalidIds.length > 0) {
-                return sendError(res, 'Invalid ID format in array', 400);
-            }
-
-            // Limit bulk delete to 100 items at a time
-            if (ids.length > 100) {
-                return sendError(res, 'Maximum 100 items per bulk delete', 400);
-            }
-
+            const { ids } = validation;
             const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
             const { rowCount } = await pool.query(
                 `DELETE FROM assets WHERE id IN (${placeholders})`,
@@ -443,19 +363,21 @@ const apiRoutes = {
         }
 
         try {
-            const { imageData } = await parseBody(req);
-            if (!imageData) return sendError(res, 'No image data provided', 400);
+            const body = await parseBody(req) as { imageData?: string };
+            if (!body.imageData) {
+                return sendError(res, 'No image data provided', 400);
+            }
 
             console.log('Analyzing image with OpenAI Vision...');
 
             const response = await openai.chat.completions.create({
-                model: "gpt-4o-mini",
+                model: 'gpt-4o-mini',
                 messages: [
                     {
-                        role: "user",
+                        role: 'user',
                         content: [
                             {
-                                type: "text",
+                                type: 'text',
                                 text: `Analyze this image and provide:
 1. Category (choose ONE): logo, icon, photo, illustration, screenshot, diagram, other
 2. Tags (3-8 relevant keywords)
@@ -471,8 +393,8 @@ Respond ONLY with valid JSON in this exact format:
 }`
                             },
                             {
-                                type: "image_url",
-                                image_url: { url: imageData }
+                                type: 'image_url',
+                                image_url: { url: body.imageData }
                             }
                         ]
                     }
@@ -481,30 +403,31 @@ Respond ONLY with valid JSON in this exact format:
                 temperature: 0.3
             });
 
-            const content = response.choices[0].message.content;
+            const content = response.choices[0].message.content || '';
             let analysis;
             try {
                 const jsonMatch = content.match(/```json\n?([\s\S]*?)\n?```/) ||
                                  content.match(/```\n?([\s\S]*?)\n?```/) ||
                                  [null, content];
-                analysis = JSON.parse(jsonMatch[1]);
-            } catch (e) {
+                analysis = JSON.parse(jsonMatch[1] || content);
+            } catch {
                 analysis = JSON.parse(content);
             }
 
             console.log('Analysis complete:', analysis.category);
             sendJson(res, analysis);
         } catch (error) {
-            console.error('Error analyzing image:', error.message);
+            console.error('Error analyzing image:', error);
             sendError(res, 'Failed to analyze image');
         }
     }
 };
 
-// Route matcher with parameter support
-function matchRoute(method, url) {
-    const [path, queryString] = url.split('?');
-    const query = {};
+// === Route Matcher ===
+function matchRoute(method: string, url: string): RouteMatch | null {
+    const [pathPart, queryString] = url.split('?');
+    const query: QueryParams = {};
+
     if (queryString) {
         queryString.split('&').forEach(pair => {
             const [key, value] = pair.split('=');
@@ -517,11 +440,11 @@ function matchRoute(method, url) {
         if (routeMethod !== method) continue;
 
         const routeParts = routePath.split('/');
-        const pathParts = path.split('/');
+        const pathParts = pathPart.split('/');
 
         if (routeParts.length !== pathParts.length) continue;
 
-        const params = {};
+        const params: RouteParams = {};
         let match = true;
 
         for (let i = 0; i < routeParts.length; i++) {
@@ -541,73 +464,16 @@ function matchRoute(method, url) {
     return null;
 }
 
-// Helper to get allowed origin
-function getAllowedOrigin(requestOrigin) {
-    if (ALLOWED_ORIGINS.includes('*')) {
-        return '*';
-    }
-    if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
-        return requestOrigin;
-    }
-    // Check for wildcard subdomain patterns like *.railway.app
-    for (const allowed of ALLOWED_ORIGINS) {
-        if (allowed.startsWith('*.')) {
-            const domain = allowed.slice(2);
-            if (requestOrigin && requestOrigin.endsWith(domain)) {
-                return requestOrigin;
-            }
-        }
-    }
-    return ALLOWED_ORIGINS[0] || '';
-}
-
-// Main server
-const server = http.createServer(async (req, res) => {
-    const origin = req.headers.origin;
-    const allowedOrigin = getAllowedOrigin(origin);
-
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    if (allowedOrigin !== '*') {
-        res.setHeader('Vary', 'Origin');
-    }
-
-    if (req.method === 'OPTIONS') {
-        res.writeHead(200);
-        res.end();
-        return;
-    }
-
-    // API routes
-    if (req.url.startsWith('/api/')) {
-        const route = matchRoute(req.method, req.url);
-        if (route) {
-            try {
-                await route.handler(req, res, route.params, route.query);
-            } catch (error) {
-                console.error('API Error:', error);
-                sendError(res, 'Internal server error');
-            }
-            return;
-        } else {
-            sendError(res, 'Not found', 404);
-            return;
-        }
-    }
-
-    // Serve static files from dist/ in production, root in development
+// === Static File Server ===
+function serveStaticFile(req: IncomingMessage, res: ServerResponse): void {
+    // In production: dist-server/server.js serves from ../dist
+    // In development: src/server.ts serves from project root
     const staticDir = process.env.NODE_ENV === 'production'
-        ? path.join(__dirname, 'dist')
-        : __dirname;
+        ? path.join(__dirname, '..', 'dist')
+        : path.join(__dirname, '..', '..');
 
-    let filePath = req.url === '/' ? '/index.html' : req.url;
-
-    // Remove query strings
+    let filePath = req.url === '/' ? '/index.html' : (req.url || '/');
     filePath = filePath.split('?')[0];
-
-    // Security: prevent directory traversal
     filePath = path.normalize(filePath).replace(/^(\.\.[\/\\])+/, '');
     filePath = path.join(staticDir, filePath);
 
@@ -617,7 +483,6 @@ const server = http.createServer(async (req, res) => {
     fs.readFile(filePath, (err, content) => {
         if (err) {
             if (err.code === 'ENOENT') {
-                // SPA fallback - serve index.html for client-side routing
                 const indexPath = path.join(staticDir, 'index.html');
                 fs.readFile(indexPath, (indexErr, indexContent) => {
                     if (indexErr) {
@@ -640,37 +505,74 @@ const server = http.createServer(async (req, res) => {
             res.end(content);
         }
     });
+}
+
+// === Main Server ===
+const server = http.createServer(async (req, res) => {
+    const origin = req.headers.origin;
+    const allowedOrigin = getAllowedOrigin(origin);
+
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (allowedOrigin !== '*') {
+        res.setHeader('Vary', 'Origin');
+    }
+
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+    }
+
+    if (req.url?.startsWith('/api/')) {
+        const route = matchRoute(req.method || 'GET', req.url);
+        if (route) {
+            try {
+                await route.handler(req, res, route.params, route.query);
+            } catch (error) {
+                console.error('API Error:', error);
+                sendError(res, 'Internal server error');
+            }
+            return;
+        } else {
+            sendError(res, 'Not found', 404);
+            return;
+        }
+    }
+
+    serveStaticFile(req, res);
 });
 
-// Start server
+// === Start Server ===
 server.listen(PORT, HOST, async () => {
     console.log('\n🚀 Asset Library Server Running!\n');
     console.log(`   URL:              http://localhost:${PORT}`);
     console.log(`   Environment:      ${process.env.NODE_ENV || 'development'}`);
 
-    // Test database connection
     try {
         await pool.query('SELECT 1');
         console.log(`   Database:         ✓ Connected`);
     } catch (error) {
-        console.log(`   Database:         ✗ Not connected (${error.message})`);
+        const err = error as Error;
+        console.log(`   Database:         ✗ Not connected (${err.message})`);
     }
 
     console.log(`   OpenAI Vision:    ${openai ? '✓ Enabled' : '✗ Disabled'}`);
     console.log('\n');
 });
 
-server.on('error', (err) => {
+server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
         console.error(`\nPort ${PORT} is already in use!`);
-        console.error(`Try: PORT=3000 node server.js\n`);
+        console.error(`Try: PORT=3000 node dist/server.js\n`);
     } else {
         console.error(`\nServer error: ${err.message}\n`);
     }
     process.exit(1);
 });
 
-// Graceful shutdown
+// === Graceful Shutdown ===
 process.on('SIGTERM', () => {
     console.log('Shutting down...');
     server.close(() => {

@@ -11,6 +11,14 @@ const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB per file
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
 const POLLING_INTERVAL = 5000; // 5 seconds for change detection
 
+// === XSS Protection ===
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 // === State Management ===
 let projects = [];
 let folders = [];
@@ -339,41 +347,85 @@ function createProjectCard(project) {
     const assetCount = assetCounts[project.id] || 0;
     const projectFolders = folders.filter(f => f.project_id === project.id);
 
+    // Sanitize color to prevent CSS injection
+    const safeColor = /^#[0-9a-fA-F]{6}$/.test(project.color) ? project.color : '#667eea';
+
     const card = document.createElement('div');
     card.className = 'project-card';
-    card.style.borderColor = project.color;
+    card.style.borderColor = safeColor;
 
-    card.innerHTML = `
-        <div class="project-card-header" style="background: ${project.color}15;">
-            <div class="project-color-badge" style="background: ${project.color};"></div>
-            <h3 class="project-name">${project.name}</h3>
-        </div>
-        <p class="project-description">${project.description || 'No description'}</p>
-        <div class="project-stats">
-            <div class="project-stat">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                    <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
-                <span>${assetCount} assets</span>
-            </div>
-            <div class="project-stat">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-                <span>${projectFolders.length} folders</span>
-            </div>
-        </div>
-        <div class="project-actions">
-            <button class="btn-icon-only" onclick="event.stopPropagation(); deleteProject('${project.id}')" title="Delete project">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-            </button>
-        </div>
+    // Build card using safe DOM methods instead of innerHTML
+    const header = document.createElement('div');
+    header.className = 'project-card-header';
+    header.style.background = `${safeColor}15`;
+
+    const colorBadge = document.createElement('div');
+    colorBadge.className = 'project-color-badge';
+    colorBadge.style.background = safeColor;
+
+    const nameEl = document.createElement('h3');
+    nameEl.className = 'project-name';
+    nameEl.textContent = project.name; // Safe: textContent escapes HTML
+
+    header.appendChild(colorBadge);
+    header.appendChild(nameEl);
+
+    const descEl = document.createElement('p');
+    descEl.className = 'project-description';
+    descEl.textContent = project.description || 'No description';
+
+    const stats = document.createElement('div');
+    stats.className = 'project-stats';
+
+    const assetStat = document.createElement('div');
+    assetStat.className = 'project-stat';
+    assetStat.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
     `;
+    const assetSpan = document.createElement('span');
+    assetSpan.textContent = `${assetCount} assets`;
+    assetStat.appendChild(assetSpan);
+
+    const folderStat = document.createElement('div');
+    folderStat.className = 'project-stat';
+    folderStat.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+    `;
+    const folderSpan = document.createElement('span');
+    folderSpan.textContent = `${projectFolders.length} folders`;
+    folderStat.appendChild(folderSpan);
+
+    stats.appendChild(assetStat);
+    stats.appendChild(folderStat);
+
+    const actions = document.createElement('div');
+    actions.className = 'project-actions';
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn-icon-only';
+    deleteBtn.title = 'Delete project';
+    deleteBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+    `;
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteProject(project.id);
+    });
+    actions.appendChild(deleteBtn);
+
+    card.appendChild(header);
+    card.appendChild(descEl);
+    card.appendChild(stats);
+    card.appendChild(actions);
 
     card.addEventListener('click', () => showProject(project.id));
 
@@ -410,7 +462,8 @@ function renderFolders() {
         if (currentFolder) {
             const breadcrumb = document.createElement('div');
             breadcrumb.className = 'folder-breadcrumb';
-            breadcrumb.textContent = `📁 ${currentFolder.name}`;
+            // Safe: textContent escapes HTML
+            breadcrumb.textContent = '📁 ' + currentFolder.name;
             elements.folderChips.appendChild(breadcrumb);
         }
     } else {
@@ -435,14 +488,35 @@ function renderFolders() {
 
         const chip = document.createElement('button');
         chip.className = `folder-chip ${selectedFolder === folder.id ? 'active' : ''}`;
-        chip.innerHTML = `
+
+        // Build chip content safely
+        const folderIcon = document.createElement('span');
+        folderIcon.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
-            ${folder.name}
-            ${hasSubfolders ? '<span style="margin-left: 4px;">▸</span>' : ''}
-            <span class="folder-chip-delete" onclick="event.stopPropagation(); deleteFolder('${folder.id}')">×</span>
         `;
+        chip.appendChild(folderIcon);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = folder.name; // Safe: textContent escapes HTML
+        chip.appendChild(nameSpan);
+
+        if (hasSubfolders) {
+            const arrow = document.createElement('span');
+            arrow.style.marginLeft = '4px';
+            arrow.textContent = '▸';
+            chip.appendChild(arrow);
+        }
+
+        const deleteSpan = document.createElement('span');
+        deleteSpan.className = 'folder-chip-delete';
+        deleteSpan.textContent = '×';
+        deleteSpan.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteFolder(folder.id);
+        });
+        chip.appendChild(deleteSpan);
 
         chip.addEventListener('click', () => {
             selectedFolder = folder.id;
@@ -563,8 +637,10 @@ function createAssetCard(asset) {
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                 </svg>
-                ${folder.name}
             `;
+            const folderName = document.createElement('span');
+            folderName.textContent = folder.name; // Safe: textContent escapes HTML
+            folderBadge.appendChild(folderName);
             info.appendChild(folderBadge);
         }
     }

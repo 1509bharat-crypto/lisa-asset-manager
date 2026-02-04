@@ -2,12 +2,16 @@
   "name": "asset-library",
   "version": "3.0.0",
   "description": "Shared asset library - upload and access images from anywhere",
-  "main": "server.js",
+  "main": "dist-server/server.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "dev:server": "tsx watch src/server.ts",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:client": "vite build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node dist-server/server.js",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "asset-management",
@@ -23,6 +27,10 @@
     "pg": "^8.11.3"
   },
   "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/pg": "^8.10.9",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
     "vite": "^5.0.8"
   },
   "engines": {
