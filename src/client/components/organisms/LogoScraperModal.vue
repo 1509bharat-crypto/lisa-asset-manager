@@ -8,9 +8,9 @@ const emit = defineEmits<{
 }>()
 
 const LOGO_PROVIDERS = [
-  (d: string) => `https://logo.clearbit.com/${d}`,
   (d: string) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
   (d: string) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
+  (d: string) => `https://logo.clearbit.com/${d}`,
 ]
 
 const DOMAIN_MAP: Record<string, string> = {
