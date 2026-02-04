@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { AppCard, AppIcon, AppButton } from '../atoms'
+import { computed, ref } from 'vue'
+import { AppIcon } from '../atoms'
 import type { Project } from '../../types'
 
 interface Props {
-  project: Project
-  assetCount: number
-  folderCount: number
+  project: Project & { asset_count?: number }
 }
 
 const props = defineProps<Props>()
@@ -14,7 +12,29 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   click: []
   delete: []
+  rename: [project: Project & { asset_count?: number }]
 }>()
+
+const showMenu = ref(false)
+
+const toggleMenu = (event: Event) => {
+  event.stopPropagation()
+  showMenu.value = !showMenu.value
+}
+
+const closeMenu = () => {
+  showMenu.value = false
+}
+
+const handleRename = () => {
+  emit('rename', props.project)
+  closeMenu()
+}
+
+const handleDelete = () => {
+  emit('delete')
+  closeMenu()
+}
 
 // Sanitize color to prevent CSS injection
 const safeColor = computed(() => {
@@ -22,18 +42,28 @@ const safeColor = computed(() => {
     ? props.project.color
     : '#667eea'
 })
+
+const assetCount = computed(() => props.project.asset_count || 0)
 </script>
 
 <template>
-  <AppCard
-    variant="bordered"
-    padding="none"
-    clickable
+  <div
     class="project-card"
     :style="{ borderColor: safeColor }"
     @click="emit('click')"
   >
-    <div class="project-card__header" :style="{ background: `${safeColor}15` }">
+    <!-- Cover image -->
+    <div class="project-card__cover" :style="{ background: project.cover_image ? 'transparent' : `${safeColor}15` }">
+      <img
+        v-if="project.cover_image"
+        :src="project.cover_image"
+        :alt="project.name"
+        class="project-card__cover-image"
+      />
+      <AppIcon v-else name="image" :size="32" class="project-card__cover-placeholder" />
+    </div>
+
+    <div class="project-card__header">
       <div class="project-card__color-badge" :style="{ background: safeColor }"></div>
       <h3 class="project-card__name">{{ project.name }}</h3>
     </div>
@@ -47,39 +77,77 @@ const safeColor = computed(() => {
         <AppIcon name="image" :size="16" />
         <span>{{ assetCount }} assets</span>
       </div>
-      <div class="project-card__stat">
-        <AppIcon name="folder" :size="16" />
-        <span>{{ folderCount }} folders</span>
+    </div>
+
+    <!-- Three-dot menu -->
+    <div class="project-card__menu-wrapper">
+      <button
+        class="project-card__menu-btn"
+        @click="toggleMenu"
+        title="More options"
+      >
+        <AppIcon name="more-vertical" :size="18" />
+      </button>
+      <div v-if="showMenu" class="project-card__dropdown" @click.stop>
+        <button class="project-card__dropdown-item" @click="handleRename">
+          <AppIcon name="edit" :size="14" />
+          <span>Edit</span>
+        </button>
+        <button class="project-card__dropdown-item project-card__dropdown-item--danger" @click="handleDelete">
+          <AppIcon name="trash" :size="14" />
+          <span>Delete</span>
+        </button>
       </div>
     </div>
 
-    <div class="project-card__actions">
-      <AppButton
-        variant="ghost"
-        size="sm"
-        class="project-card__delete"
-        @click.stop="emit('delete')"
-      >
-        <AppIcon name="trash" :size="18" />
-      </AppButton>
-    </div>
-  </AppCard>
+    <!-- Click outside to close menu -->
+    <div v-if="showMenu" class="project-card__backdrop" @click="closeMenu"></div>
+  </div>
 </template>
 
 <style scoped>
 .project-card {
+  position: relative;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: fadeIn 0.3s ease;
+}
+
+.project-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.project-card__cover {
+  aspect-ratio: 16 / 9;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px 10px 0 0;
   overflow: hidden;
-  border-width: 2px;
-  border-left-width: 4px;
+}
+
+.project-card__cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.project-card__cover-placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.3;
 }
 
 .project-card__header {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md);
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 0.5rem;
 }
 
 .project-card__color-badge {
@@ -90,52 +158,141 @@ const safeColor = computed(() => {
 }
 
 .project-card__name {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin: 0;
 }
 
 .project-card__description {
-  padding: 0 var(--space-md);
-  margin-bottom: var(--space-md);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  padding: 0 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .project-card__stats {
   display: flex;
-  gap: var(--space-lg);
-  padding: 0 var(--space-md) var(--space-md);
+  gap: 1.5rem;
+  padding: 0 1rem 1rem;
 }
 
 .project-card__stat {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
-.project-card__actions {
+.project-card__stat :deep(svg) {
+  color: var(--accent-color);
+}
+
+.project-card__menu-wrapper {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+.project-card__menu-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.5rem;
+  cursor: pointer;
   display: flex;
-  justify-content: flex-end;
-  padding: var(--space-sm) var(--space-md);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg);
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+  opacity: 0;
 }
 
-.project-card__delete {
-  color: var(--color-text-muted);
+.project-card:hover .project-card__menu-btn {
+  opacity: 1;
 }
 
-.project-card__delete:hover {
+.project-card__menu-btn:hover {
+  background: var(--color-surface-elevated);
+  border-color: var(--color-border-hover);
+}
+
+.project-card__dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 140px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 100;
+  animation: dropdownFade 0.15s ease;
+}
+
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.project-card__dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.project-card__dropdown-item:hover {
+  background: var(--color-bg-elevated);
+}
+
+.project-card__dropdown-item--danger {
   color: var(--color-error);
-  background: var(--color-error-light);
+}
+
+.project-card__dropdown-item--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.project-card__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

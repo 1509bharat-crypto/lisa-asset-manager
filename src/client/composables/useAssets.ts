@@ -3,7 +3,8 @@ import { api } from '../services/api'
 import { useToast } from './useToast'
 import type { Asset, UploadProgress } from '../types'
 
-const assets = ref<Asset[]>([])
+const allAssets = ref<Asset[]>([])
+const currentFolderId = ref<string | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const uploadQueue = ref<UploadProgress[]>([])
@@ -15,16 +16,25 @@ export function useAssets() {
     uploadQueue.value.some((u) => u.status === 'uploading')
   )
 
-  const fetchAssets = async (projectId: string, folder?: string) => {
+  // Filter assets by selected folder (client-side filtering)
+  const assets = computed(() => {
+    if (!currentFolderId.value) {
+      return allAssets.value
+    }
+    return allAssets.value.filter((a) => a.folder_id === currentFolderId.value)
+  })
+
+  const fetchAssets = async (projectId: string, folderId?: string | null) => {
     loading.value = true
     error.value = null
+    currentFolderId.value = folderId || null
 
     try {
-      const response = await api.getAssets(projectId, folder)
+      const response = await api.getAssets(projectId)
       if (response.error) {
         throw new Error(response.error)
       }
-      assets.value = response.data || []
+      allAssets.value = response.data || []
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to fetch assets'
       error.value = message
@@ -37,7 +47,7 @@ export function useAssets() {
   const uploadAssets = async (
     projectId: string,
     files: File[],
-    folders: string[] = []
+    folderId: string | null = null
   ) => {
     const newUploads: UploadProgress[] = files.map((file) => ({
       file,
@@ -56,7 +66,7 @@ export function useAssets() {
         const response = await api.uploadAsset(
           projectId,
           upload.file,
-          folders,
+          folderId,
           (progress) => {
             upload.progress = progress
           }
@@ -70,7 +80,7 @@ export function useAssets() {
           upload.status = 'complete'
           upload.progress = 100
           results.push(response.data)
-          assets.value.unshift(response.data)
+          allAssets.value.unshift(response.data)
         }
       } catch (e) {
         upload.status = 'error'
@@ -101,7 +111,7 @@ export function useAssets() {
       if (response.error) {
         throw new Error(response.error)
       }
-      assets.value = assets.value.filter((a) => a.id !== id)
+      allAssets.value = allAssets.value.filter((a) => a.id !== id)
       toast.success('Asset deleted')
       return true
     } catch (e) {
@@ -120,7 +130,7 @@ export function useAssets() {
       if (response.error) {
         throw new Error(response.error)
       }
-      assets.value = assets.value.filter((a) => !ids.includes(a.id))
+      allAssets.value = allAssets.value.filter((a) => !ids.includes(a.id))
       toast.success(`${ids.length} asset(s) deleted`)
       return true
     } catch (e) {
@@ -131,24 +141,48 @@ export function useAssets() {
     }
   }
 
-  const updateAssetFolders = async (id: string, folders: string[]) => {
+  const updateAssetFolder = async (id: string, folderId: string | null) => {
     error.value = null
 
     try {
-      const response = await api.updateAssetFolders(id, folders)
+      const response = await api.updateAssetFolder(id, folderId)
       if (response.error) {
         throw new Error(response.error)
       }
       if (response.data) {
-        const index = assets.value.findIndex((a) => a.id === id)
+        const index = allAssets.value.findIndex((a) => a.id === id)
         if (index > -1) {
-          assets.value[index] = response.data
+          allAssets.value[index] = response.data
         }
       }
       return response.data
     } catch (e) {
       const message =
-        e instanceof Error ? e.message : 'Failed to update asset folders'
+        e instanceof Error ? e.message : 'Failed to update asset folder'
+      error.value = message
+      toast.error(message)
+      return null
+    }
+  }
+
+  const renameAsset = async (id: string, name: string) => {
+    error.value = null
+
+    try {
+      const response = await api.renameAsset(id, name)
+      if (response.error) {
+        throw new Error(response.error)
+      }
+      if (response.data) {
+        const index = allAssets.value.findIndex((a) => a.id === id)
+        if (index > -1) {
+          allAssets.value[index] = response.data
+        }
+        toast.success('Asset renamed')
+      }
+      return response.data
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to rename asset'
       error.value = message
       toast.error(message)
       return null
@@ -168,7 +202,7 @@ export function useAssets() {
       if (response.error) {
         throw new Error(response.error)
       }
-      assets.value = response.data || []
+      allAssets.value = response.data || []
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Search failed'
       error.value = message
@@ -179,11 +213,13 @@ export function useAssets() {
   }
 
   const clearAssets = () => {
-    assets.value = []
+    allAssets.value = []
+    currentFolderId.value = null
   }
 
   return {
-    assets: readonly(assets),
+    assets,
+    allAssets: readonly(allAssets),
     loading: readonly(loading),
     error: readonly(error),
     uploadQueue: readonly(uploadQueue),
@@ -192,7 +228,8 @@ export function useAssets() {
     uploadAssets,
     deleteAsset,
     deleteAssets,
-    updateAssetFolders,
+    updateAssetFolder,
+    renameAsset,
     searchAssets,
     clearAssets
   }

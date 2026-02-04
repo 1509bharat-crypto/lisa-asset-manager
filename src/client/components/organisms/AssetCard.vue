@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { AppCard, AppIcon } from '../atoms'
 import { FolderChip } from '../molecules'
 import type { Asset, Folder } from '../../types'
@@ -20,13 +20,55 @@ const emit = defineEmits<{
   click: []
   select: []
   delete: []
+  download: []
+  rename: []
+  setAsCover: []
 }>()
+
+const showMenu = ref(false)
+
+const toggleMenu = (event: Event) => {
+  event.stopPropagation()
+  showMenu.value = !showMenu.value
+}
+
+const closeMenu = () => {
+  showMenu.value = false
+}
+
+const handleRename = () => {
+  emit('rename')
+  closeMenu()
+}
+
+const handleDelete = () => {
+  emit('delete')
+  closeMenu()
+}
+
+const handleSetAsCover = () => {
+  emit('setAsCover')
+  closeMenu()
+}
 
 const formattedSize = computed(() => {
   const bytes = props.asset.size
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+})
+
+const formattedType = computed(() => {
+  const subtype = props.asset.type.split('/')[1] || ''
+  // Clean up common MIME subtypes
+  const typeMap: Record<string, string> = {
+    'svg+xml': 'SVG',
+    'jpeg': 'JPG',
+    'png': 'PNG',
+    'gif': 'GIF',
+    'webp': 'WEBP'
+  }
+  return typeMap[subtype.toLowerCase()] || subtype.toUpperCase()
 })
 </script>
 
@@ -67,15 +109,39 @@ const formattedSize = computed(() => {
       </div>
 
       <div class="asset-card__meta">
-        <span class="asset-card__type">{{ asset.type.split('/')[1]?.toUpperCase() }}</span>
+        <span class="asset-card__type">{{ formattedType }}</span>
         <span class="asset-card__size">{{ formattedSize }}</span>
       </div>
     </div>
 
-    <!-- Delete button (hover) -->
-    <button class="asset-card__delete" @click.stop="emit('delete')">
-      <AppIcon name="trash" :size="16" />
-    </button>
+    <!-- Hover actions -->
+    <div class="asset-card__actions">
+      <button class="asset-card__action asset-card__action--download" @click.stop="emit('download')" title="Download">
+        <AppIcon name="download" :size="16" />
+      </button>
+      <div class="asset-card__menu-wrapper">
+        <button class="asset-card__action asset-card__action--menu" @click="toggleMenu" title="More options">
+          <AppIcon name="more-vertical" :size="16" />
+        </button>
+        <div v-if="showMenu" class="asset-card__dropdown" @click.stop>
+          <button class="asset-card__dropdown-item" @click="handleSetAsCover">
+            <AppIcon name="image" :size="14" />
+            <span>Set as Cover</span>
+          </button>
+          <button class="asset-card__dropdown-item" @click="handleRename">
+            <AppIcon name="edit" :size="14" />
+            <span>Rename</span>
+          </button>
+          <button class="asset-card__dropdown-item asset-card__dropdown-item--danger" @click="handleDelete">
+            <AppIcon name="trash" :size="14" />
+            <span>Delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Click outside to close menu -->
+    <div v-if="showMenu" class="asset-card__backdrop" @click="closeMenu"></div>
   </AppCard>
 </template>
 
@@ -184,32 +250,108 @@ const formattedSize = computed(() => {
   border-radius: var(--radius-sm);
 }
 
-/* Delete button */
-.asset-card__delete {
+/* Hover actions */
+.asset-card__actions {
   position: absolute;
   top: var(--space-sm);
   right: var(--space-sm);
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.asset-card:hover .asset-card__actions {
+  opacity: 1;
+}
+
+.asset-card__action {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  color: var(--text-secondary, #999);
   cursor: pointer;
-  opacity: 0;
-  transition: all var(--transition-fast);
+  transition: all 0.15s ease;
 }
 
-.asset-card:hover .asset-card__delete {
-  opacity: 1;
+.asset-card__action--download:hover {
+  background: var(--accent-color, #4a9eff);
+  border-color: var(--accent-color, #4a9eff);
+  color: white;
 }
 
-.asset-card__delete:hover {
-  background: var(--color-error-light);
-  border-color: var(--color-error);
-  color: var(--color-error);
+.asset-card__action--menu:hover {
+  background: var(--color-surface, #2a2a2a);
+  border-color: var(--color-border-hover, #444);
+}
+
+/* Menu wrapper */
+.asset-card__menu-wrapper {
+  position: relative;
+}
+
+/* Dropdown menu */
+.asset-card__dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 140px;
+  background: var(--color-surface, #1a1a1a);
+  border: 1px solid var(--color-border, #333);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 100;
+  animation: dropdownFade 0.15s ease;
+}
+
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.asset-card__dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: var(--color-text-primary, #fff);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.asset-card__dropdown-item:hover {
+  background: var(--color-bg-elevated, #2a2a2a);
+}
+
+.asset-card__dropdown-item--danger {
+  color: var(--color-error, #ef4444);
+}
+
+.asset-card__dropdown-item--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Invisible backdrop to close menu on click outside */
+.asset-card__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
 }
 </style>

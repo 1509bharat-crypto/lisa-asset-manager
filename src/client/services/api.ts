@@ -52,7 +52,7 @@ export const api = {
 
   async updateProject(
     id: string,
-    data: Partial<Pick<Project, 'name' | 'description' | 'color'>>
+    data: Partial<Pick<Project, 'name' | 'description' | 'color' | 'cover_asset_id' | 'cover_image'>>
   ): Promise<ApiResponse<Project>> {
     return request<Project>(`/projects/${id}`, {
       method: 'PATCH',
@@ -66,59 +66,72 @@ export const api = {
     })
   },
 
+  // Asset counts and storage
+  async getAssetCounts(): Promise<ApiResponse<Record<string, number>>> {
+    return request<Record<string, number>>('/assets/counts')
+  },
+
+  async getStorageInfo(): Promise<ApiResponse<{ total_size: number }>> {
+    return request<{ total_size: number }>('/assets/storage')
+  },
+
   // Assets
   async getAssets(
     projectId: string,
-    folder?: string
+    _folder?: string
   ): Promise<ApiResponse<Asset[]>> {
     const params = new URLSearchParams()
-    if (folder) params.set('folder', folder)
-    const query = params.toString()
-    return request<Asset[]>(
-      `/projects/${projectId}/assets${query ? `?${query}` : ''}`
-    )
+    params.set('project_id', projectId)
+    return request<Asset[]>(`/assets?${params.toString()}`)
   },
 
   async uploadAsset(
     projectId: string,
     file: File,
-    folders: string[] = [],
+    folderId: string | null = null,
     onProgress?: (progress: number) => void
   ): Promise<ApiResponse<Asset>> {
     return new Promise((resolve) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      if (folders.length > 0) {
-        formData.append('folders', JSON.stringify(folders))
-      }
+      const reader = new FileReader()
 
-      const xhr = new XMLHttpRequest()
-
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable && onProgress) {
-          onProgress(Math.round((e.loaded / e.total) * 100))
-        }
-      })
-
-      xhr.addEventListener('load', () => {
+      reader.onload = async () => {
         try {
-          const data = JSON.parse(xhr.responseText)
-          if (xhr.status >= 200 && xhr.status < 300) {
+          // Keep the full data URL (data:image/png;base64,...)
+          const dataUrl = reader.result as string
+
+          const body = {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            data: dataUrl,
+            project_id: projectId,
+            folder_id: folderId
+          }
+
+          const response = await fetch(`${API_BASE}/assets`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          })
+
+          const data = await response.json()
+
+          if (response.ok) {
+            if (onProgress) onProgress(100)
             resolve({ data })
           } else {
             resolve({ error: data.error || 'Upload failed' })
           }
         } catch {
-          resolve({ error: 'Invalid response' })
+          resolve({ error: 'Upload failed' })
         }
-      })
+      }
 
-      xhr.addEventListener('error', () => {
-        resolve({ error: 'Network error' })
-      })
+      reader.onerror = () => {
+        resolve({ error: 'Failed to read file' })
+      }
 
-      xhr.open('POST', `${API_BASE}/projects/${projectId}/assets`)
-      xhr.send(formData)
+      reader.readAsDataURL(file)
     })
   },
 
@@ -129,19 +142,29 @@ export const api = {
   },
 
   async deleteAssets(ids: string[]): Promise<ApiResponse<void>> {
-    return request<void>('/assets', {
-      method: 'DELETE',
+    return request<void>('/assets/bulk-delete', {
+      method: 'POST',
       body: JSON.stringify({ ids })
     })
   },
 
-  async updateAssetFolders(
+  async updateAssetFolder(
     id: string,
-    folders: string[]
+    folderId: string | null
   ): Promise<ApiResponse<Asset>> {
-    return request<Asset>(`/assets/${id}/folders`, {
+    return request<Asset>(`/assets/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ folders })
+      body: JSON.stringify({ folder_id: folderId })
+    })
+  },
+
+  async renameAsset(
+    id: string,
+    name: string
+  ): Promise<ApiResponse<Asset>> {
+    return request<Asset>(`/assets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name })
     })
   },
 
@@ -155,30 +178,42 @@ export const api = {
     )
   },
 
-  // Folders
+  // Folders - fetches all folders, filters by project_id on client
   async getFolders(projectId: string): Promise<ApiResponse<Folder[]>> {
-    return request<Folder[]>(`/projects/${projectId}/folders`)
+    const response = await request<Folder[]>('/folders')
+    if (response.data) {
+      // Filter folders by project_id on client side
+      response.data = response.data.filter(f => f.project_id === projectId)
+    }
+    return response
   },
 
   async createFolder(
     projectId: string,
     name: string
   ): Promise<ApiResponse<Folder>> {
-    return request<Folder>(`/projects/${projectId}/folders`, {
+    return request<Folder>('/folders', {
       method: 'POST',
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, project_id: projectId })
     })
   },
 
   async deleteFolder(
-    projectId: string,
-    name: string
+    _projectId: string,
+    folderId: string
   ): Promise<ApiResponse<void>> {
-    return request<void>(
-      `/projects/${projectId}/folders/${encodeURIComponent(name)}`,
-      {
-        method: 'DELETE'
-      }
-    )
+    return request<void>(`/folders/${folderId}`, {
+      method: 'DELETE'
+    })
+  },
+
+  async renameFolder(
+    folderId: string,
+    name: string
+  ): Promise<ApiResponse<Folder>> {
+    return request<Folder>(`/folders/${folderId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name })
+    })
   }
 }

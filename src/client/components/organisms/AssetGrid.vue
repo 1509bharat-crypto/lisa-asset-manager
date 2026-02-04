@@ -10,19 +10,24 @@ interface Props {
   loading?: boolean
   selectable?: boolean
   selectedIds?: string[]
+  gridSize?: number // Controls min size of cards (smaller = more per row)
 }
 
 const props = withDefaults(defineProps<Props>(), {
   folders: () => [],
   loading: false,
   selectable: false,
-  selectedIds: () => []
+  selectedIds: () => [],
+  gridSize: 200 // Default card min-width in pixels
 })
 
 const emit = defineEmits<{
   select: [id: string]
   delete: [id: string]
+  download: [asset: Asset]
   preview: [asset: Asset]
+  rename: [asset: Asset]
+  setAsCover: [asset: Asset]
 }>()
 
 const getFolder = (folderId: string | null): Folder | null => {
@@ -33,6 +38,10 @@ const getFolder = (folderId: string | null): Folder | null => {
 const isSelected = (id: string): boolean => {
   return props.selectedIds.includes(id)
 }
+
+const gridStyle = computed(() => ({
+  '--grid-min-size': `${props.gridSize}px`
+}))
 </script>
 
 <template>
@@ -57,7 +66,7 @@ const isSelected = (id: string): boolean => {
     </div>
 
     <!-- Asset grid -->
-    <div v-else class="asset-grid__grid">
+    <div v-else class="asset-grid__grid" :style="gridStyle">
       <AssetCard
         v-for="asset in assets"
         :key="asset.id"
@@ -68,6 +77,9 @@ const isSelected = (id: string): boolean => {
         @click="emit('preview', asset)"
         @select="emit('select', asset.id)"
         @delete="emit('delete', asset.id)"
+        @download="emit('download', asset)"
+        @rename="emit('rename', asset)"
+        @set-as-cover="emit('setAsCover', asset)"
       />
     </div>
   </div>
@@ -116,19 +128,7 @@ const isSelected = (id: string): boolean => {
 
 .asset-grid__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min-size, 200px), 1fr));
   gap: var(--space-md);
-}
-
-@media (min-width: 768px) {
-  .asset-grid__grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  .asset-grid__grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  }
 }
 </style>

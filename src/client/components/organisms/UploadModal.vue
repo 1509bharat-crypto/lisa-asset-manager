@@ -1,30 +1,43 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { AppButton, AppCard, AppSpinner, AppIcon } from '../atoms'
+import type { Folder } from '../../types'
 
 interface Props {
-  projectId: string
-  folderId?: string
+  folders: Folder[]
+  currentFolderId?: string | null
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  folders: () => [],
+  currentFolderId: null
+})
 
 const emit = defineEmits<{
   close: []
-  upload: [files: File[]]
+  upload: [files: File[], folderId: string | null]
+  createFolder: [name: string]
 }>()
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
-
 const isDragging = ref(false)
 const files = ref<File[]>([])
 const uploading = ref(false)
 const progress = ref(0)
+const selectedFolderId = ref<string | null>(props.currentFolderId)
+const showNewFolderInput = ref(false)
+const newFolderName = ref('')
+const newFolderInputRef = ref<HTMLInputElement | null>(null)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const canUpload = computed(() => files.value.length > 0 && !uploading.value)
+
+const openNewFolderInput = () => {
+  showNewFolderInput.value = true
+  setTimeout(() => newFolderInputRef.value?.focus(), 0)
+}
 
 const handleDragOver = (e: DragEvent) => {
   e.preventDefault()
@@ -84,11 +97,24 @@ const handleUpload = async () => {
   uploading.value = true
   progress.value = 0
 
-  emit('upload', files.value)
+  emit('upload', files.value, selectedFolderId.value)
 }
 
 const triggerFileInput = () => {
   fileInput.value?.click()
+}
+
+const handleCreateFolder = () => {
+  if (newFolderName.value.trim()) {
+    emit('createFolder', newFolderName.value.trim())
+    newFolderName.value = ''
+    showNewFolderInput.value = false
+  }
+}
+
+const cancelNewFolder = () => {
+  showNewFolderInput.value = false
+  newFolderName.value = ''
 }
 </script>
 
@@ -101,6 +127,63 @@ const triggerFileInput = () => {
           <AppButton variant="ghost" size="sm" @click="emit('close')">
             <AppIcon name="x" :size="20" />
           </AppButton>
+        </div>
+
+        <!-- Folder selector -->
+        <div class="upload-modal__folder-section">
+          <label class="upload-modal__label">Upload to folder</label>
+
+          <!-- Dropdown + button row -->
+          <div class="upload-modal__folder-row">
+            <select
+              v-model="selectedFolderId"
+              class="upload-modal__folder-select"
+            >
+              <option :value="null">No folder (root)</option>
+              <option
+                v-for="folder in folders"
+                :key="folder.id"
+                :value="folder.id"
+              >
+                {{ folder.name }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="upload-modal__add-folder-btn"
+              title="Create new folder"
+              @click="openNewFolderInput"
+            >
+              <AppIcon name="plus" :size="18" />
+            </button>
+          </div>
+
+          <!-- New folder input (shown when creating) -->
+          <div v-if="showNewFolderInput" class="upload-modal__new-folder">
+            <input
+              ref="newFolderInputRef"
+              v-model="newFolderName"
+              type="text"
+              placeholder="New folder name"
+              class="upload-modal__new-folder-input"
+              @keyup.enter="handleCreateFolder"
+              @keyup.escape="cancelNewFolder"
+            />
+            <AppButton
+              size="sm"
+              :disabled="!newFolderName.trim()"
+              @click="handleCreateFolder"
+            >
+              Create
+            </AppButton>
+            <AppButton
+              variant="ghost"
+              size="sm"
+              @click="cancelNewFolder"
+            >
+              Cancel
+            </AppButton>
+          </div>
         </div>
 
         <!-- Drop zone -->
@@ -198,12 +281,100 @@ const triggerFileInput = () => {
   font-weight: var(--font-weight-semibold);
 }
 
+.upload-modal__folder-section {
+  margin-bottom: var(--space-lg);
+}
+
+.upload-modal__label {
+  display: block;
+  margin-bottom: var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.upload-modal__folder-row {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.upload-modal__folder-select {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.upload-modal__add-folder-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--color-surface, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.upload-modal__add-folder-btn:hover {
+  background: var(--color-surface-elevated, #2a2a2a);
+  border-color: var(--color-primary);
+}
+
+.upload-modal__folder-select option {
+  background: var(--color-surface, #1a1a1a);
+  color: var(--color-text-primary);
+  padding: 8px;
+}
+
+.upload-modal__folder-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.upload-modal__new-folder {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.upload-modal__new-folder-input {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.upload-modal__new-folder-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
 .upload-modal__dropzone {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--space-2xl);
+  min-height: 250px;
+  padding: var(--space-2xl) var(--space-xl);
   border: 2px dashed var(--color-border);
   border-radius: var(--radius-lg);
   cursor: pointer;
@@ -246,6 +417,8 @@ const triggerFileInput = () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  max-height: 150px;
+  overflow-y: auto;
 }
 
 .upload-modal__file {

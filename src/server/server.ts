@@ -167,6 +167,60 @@ const apiRoutes: Record<string, RouteHandler> = {
         }
     },
 
+    'PATCH /api/projects/:id': async (req, res, params) => {
+        try {
+            if (!isValidUUID(params.id)) {
+                return sendError(res, 'Invalid project ID format', 400);
+            }
+
+            const body = await parseBody(req) as Record<string, unknown>;
+            const updates: string[] = [];
+            const values: unknown[] = [];
+            let paramIndex = 1;
+
+            if (body.name !== undefined) {
+                updates.push(`name = $${paramIndex++}`);
+                values.push(body.name);
+            }
+            if (body.description !== undefined) {
+                updates.push(`description = $${paramIndex++}`);
+                values.push(body.description);
+            }
+            if (body.color !== undefined) {
+                if (!isValidColor(body.color as string)) {
+                    return sendError(res, 'Invalid color format', 400);
+                }
+                updates.push(`color = $${paramIndex++}`);
+                values.push(body.color);
+            }
+            if (body.cover_asset_id !== undefined) {
+                updates.push(`cover_asset_id = $${paramIndex++}`);
+                values.push(body.cover_asset_id);
+            }
+            if (body.cover_image !== undefined) {
+                updates.push(`cover_image = $${paramIndex++}`);
+                values.push(body.cover_image);
+            }
+
+            if (updates.length === 0) {
+                return sendError(res, 'No fields to update', 400);
+            }
+
+            updates.push(`updated_at = NOW()`);
+            values.push(params.id);
+
+            const { rows, rowCount } = await pool.query(
+                `UPDATE projects SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+                values
+            );
+            if (rowCount === 0) return sendError(res, 'Project not found', 404);
+            sendJson(res, rows[0]);
+        } catch (error) {
+            console.error('Error updating project:', error);
+            sendError(res, 'Failed to update project');
+        }
+    },
+
     'DELETE /api/projects/:id': async (_req, res, params) => {
         try {
             if (!isValidUUID(params.id)) {
@@ -216,6 +270,44 @@ const apiRoutes: Record<string, RouteHandler> = {
         } catch (error) {
             console.error('Error creating folder:', error);
             sendError(res, 'Failed to create folder');
+        }
+    },
+
+    'PATCH /api/folders/:id': async (req, res, params) => {
+        try {
+            if (!isValidUUID(params.id)) {
+                return sendError(res, 'Invalid folder ID format', 400);
+            }
+
+            const body = await parseBody(req) as Record<string, unknown>;
+            const updates: string[] = [];
+            const values: unknown[] = [];
+            let paramIndex = 1;
+
+            if (body.name !== undefined) {
+                if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+                    return sendError(res, 'Invalid folder name', 400);
+                }
+                updates.push(`name = $${paramIndex++}`);
+                values.push(body.name.trim());
+            }
+
+            if (updates.length === 0) {
+                return sendError(res, 'No fields to update', 400);
+            }
+
+            updates.push(`updated_at = NOW()`);
+            values.push(params.id);
+
+            const { rows, rowCount } = await pool.query(
+                `UPDATE folders SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+                values
+            );
+            if (rowCount === 0) return sendError(res, 'Folder not found', 404);
+            sendJson(res, rows[0]);
+        } catch (error) {
+            console.error('Error updating folder:', error);
+            sendError(res, 'Failed to update folder');
         }
     },
 
@@ -316,6 +408,50 @@ const apiRoutes: Record<string, RouteHandler> = {
         }
     },
 
+    'PATCH /api/assets/:id': async (req, res, params) => {
+        try {
+            if (!isValidUUID(params.id)) {
+                return sendError(res, 'Invalid asset ID format', 400);
+            }
+
+            const body = await parseBody(req) as Record<string, unknown>;
+            const updates: string[] = [];
+            const values: unknown[] = [];
+            let paramIndex = 1;
+
+            if (body.name !== undefined) {
+                if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+                    return sendError(res, 'Invalid asset name', 400);
+                }
+                updates.push(`name = $${paramIndex++}`);
+                values.push(body.name.trim());
+            }
+            if (body.folder_id !== undefined) {
+                if (body.folder_id !== null && !isValidUUID(body.folder_id as string)) {
+                    return sendError(res, 'Invalid folder_id format', 400);
+                }
+                updates.push(`folder_id = $${paramIndex++}`);
+                values.push(body.folder_id);
+            }
+
+            if (updates.length === 0) {
+                return sendError(res, 'No fields to update', 400);
+            }
+
+            values.push(params.id);
+
+            const { rows, rowCount } = await pool.query(
+                `UPDATE assets SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+                values
+            );
+            if (rowCount === 0) return sendError(res, 'Asset not found', 404);
+            sendJson(res, rows[0]);
+        } catch (error) {
+            console.error('Error updating asset:', error);
+            sendError(res, 'Failed to update asset');
+        }
+    },
+
     'DELETE /api/assets/:id': async (_req, res, params) => {
         try {
             if (!isValidUUID(params.id)) {
@@ -331,6 +467,32 @@ const apiRoutes: Record<string, RouteHandler> = {
         } catch (error) {
             console.error('Error deleting asset:', error);
             sendError(res, 'Failed to delete asset');
+        }
+    },
+
+    'GET /api/projects/:projectId/assets/search': async (_req, res, params, query) => {
+        try {
+            if (!isValidUUID(params.projectId)) {
+                return sendError(res, 'Invalid project ID format', 400);
+            }
+
+            const searchQuery = query.q?.trim() || '';
+            if (!searchQuery) {
+                return sendJson(res, []);
+            }
+
+            // Search by name (case-insensitive)
+            const { rows } = await pool.query(
+                `SELECT * FROM assets
+                 WHERE project_id = $1 AND LOWER(name) LIKE LOWER($2)
+                 ORDER BY upload_date DESC
+                 LIMIT 100`,
+                [params.projectId, `%${searchQuery}%`]
+            );
+            sendJson(res, rows);
+        } catch (error) {
+            console.error('Error searching assets:', error);
+            sendError(res, 'Failed to search assets');
         }
     },
 
@@ -513,7 +675,7 @@ const server = http.createServer(async (req, res) => {
     const allowedOrigin = getAllowedOrigin(origin);
 
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (allowedOrigin !== '*') {
         res.setHeader('Vary', 'Origin');

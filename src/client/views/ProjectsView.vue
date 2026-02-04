@@ -2,22 +2,32 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppSpinner } from '../components/atoms'
-import { StatCard, ConfirmDialog } from '../components/molecules'
+import { ConfirmDialog } from '../components/molecules'
 import {
   AppHeader,
   ProjectCard,
-  CreateProjectModal
+  CreateProjectModal,
+  EditProjectModal
 } from '../components/organisms'
 import { useProjects } from '../composables'
+import type { Project } from '../types'
 
 const router = useRouter()
-const { projects, loading, fetchProjects, createProject, deleteProject } =
-  useProjects()
+const {
+  projects,
+  loading,
+  fetchProjects,
+  createProject,
+  updateProject,
+  deleteProject
+} = useProjects()
 
 const showCreateModal = ref(false)
 const projectToDelete = ref<string | null>(null)
+const projectToEdit = ref<(Project & { asset_count?: number }) | null>(null)
 
 onMounted(() => {
+  // Only fetch if no data yet (first load or hard refresh)
   fetchProjects()
 })
 
@@ -43,18 +53,17 @@ const handleDeleteProject = async () => {
   }
 }
 
-const totalAssets = () =>
-  projects.value.reduce((sum, p) => sum + p.asset_count, 0)
-
-const totalStorage = () =>
-  projects.value.reduce((sum, p) => sum + p.total_size, 0)
-
-const formatStorage = (bytes: number) => {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+const handleEditProject = async (data: {
+  name: string
+  description: string
+  color: string
+}) => {
+  if (projectToEdit.value) {
+    const result = await updateProject(projectToEdit.value.id, data)
+    if (result) {
+      projectToEdit.value = null
+    }
+  }
 }
 </script>
 
@@ -63,25 +72,6 @@ const formatStorage = (bytes: number) => {
     <AppHeader @create-project="showCreateModal = true" />
 
     <main class="projects-view__content">
-      <!-- Stats -->
-      <div class="projects-view__stats">
-        <StatCard
-          icon="folder"
-          :value="projects.length"
-          label="Projects"
-        />
-        <StatCard
-          icon="image"
-          :value="totalAssets()"
-          label="Total Assets"
-        />
-        <StatCard
-          icon="storage"
-          :value="formatStorage(totalStorage())"
-          label="Storage Used"
-        />
-      </div>
-
       <!-- Loading -->
       <div v-if="loading" class="projects-view__loading">
         <AppSpinner size="lg" />
@@ -106,6 +96,7 @@ const formatStorage = (bytes: number) => {
           :project="project"
           @click="handleProjectClick(project.id)"
           @delete="projectToDelete = project.id"
+          @rename="projectToEdit = $event"
         />
       </div>
     </main>
@@ -115,6 +106,14 @@ const formatStorage = (bytes: number) => {
       v-if="showCreateModal"
       @close="showCreateModal = false"
       @create="handleCreateProject"
+    />
+
+    <!-- Edit Project Modal -->
+    <EditProjectModal
+      v-if="projectToEdit"
+      :project="projectToEdit"
+      @close="projectToEdit = null"
+      @save="handleEditProject"
     />
 
     <!-- Delete Confirmation -->
@@ -140,13 +139,6 @@ const formatStorage = (bytes: number) => {
   max-width: 1400px;
   margin: 0 auto;
   padding: var(--space-xl);
-}
-
-.projects-view__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-lg);
-  margin-bottom: var(--space-xl);
 }
 
 .projects-view__loading {
