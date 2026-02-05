@@ -685,7 +685,7 @@ Respond ONLY with valid JSON in this exact format:
                 model: 'gpt-image-1',
                 prompt: prompt,
                 n: 1,
-                size: '512x512',
+                size: '1024x1024',
                 quality: 'low',
                 background: 'transparent',
                 output_format: 'png'
