@@ -47,7 +47,7 @@ const fileExtension = computed(() => {
 
         <div class="asset-preview__image-container">
           <img
-            :src="asset.data"
+            :src="`/api/assets/${asset.id}/image`"
             :alt="asset.name"
             class="asset-preview__image"
           />

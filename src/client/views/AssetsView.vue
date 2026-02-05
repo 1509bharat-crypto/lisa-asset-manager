@@ -199,7 +199,7 @@ const handleBulkDownload = async () => {
   if (selectedAssetObjects.length === 1) {
     const asset = selectedAssetObjects[0]
     const link = document.createElement('a')
-    link.href = asset.data
+    link.href = `/api/assets/${asset.id}/image`
     link.download = asset.name
     document.body.appendChild(link)
     link.click()
@@ -213,8 +213,8 @@ const handleBulkDownload = async () => {
 
   // Add each asset to the zip
   for (const asset of selectedAssetObjects) {
-    // Convert data URL to blob
-    const response = await fetch(asset.data)
+    // Fetch image from API endpoint
+    const response = await fetch(`/api/assets/${asset.id}/image`)
     const blob = await response.blob()
     zip.file(asset.name, blob)
   }
@@ -244,9 +244,9 @@ const handleBulkMove = async (newProjectId: string, newFolderId: string | null) 
 }
 
 const handleDownload = (asset: Asset) => {
-  // Create a download link from the data URL
+  // Create a download link from the API endpoint
   const link = document.createElement('a')
-  link.href = asset.data
+  link.href = `/api/assets/${asset.id}/image`
   link.download = asset.name
   document.body.appendChild(link)
   link.click()
@@ -261,7 +261,10 @@ const handleRename = async (newName: string) => {
 }
 
 const handleSetAsCover = async (asset: Asset) => {
-  await setProjectCover(projectId.value, asset.id, asset.data)
+  // Fetch the full asset data for the cover image
+  const response = await fetch(`/api/assets/${asset.id}`)
+  const fullAsset = await response.json()
+  await setProjectCover(projectId.value, asset.id, fullAsset.data)
 }
 
 const handleMoveAsset = async (assetId: string, newProjectId: string, newFolderId: string | null) => {

@@ -340,7 +340,8 @@ const apiRoutes: Record<string, RouteHandler> = {
     // === ASSETS ===
     'GET /api/assets': async (_req, res, _params, query) => {
         try {
-            let sql = 'SELECT * FROM assets';
+            // Exclude 'data' column from list query - it's huge and only needed for preview/download
+            let sql = 'SELECT id, name, type, size, project_id, folder_id, upload_date FROM assets';
             const values: string[] = [];
             const conditions: string[] = [];
 
@@ -413,6 +414,69 @@ const apiRoutes: Record<string, RouteHandler> = {
         } catch (error) {
             console.error('Error creating asset:', error);
             sendError(res, 'Failed to create asset');
+        }
+    },
+
+    'GET /api/assets/:id': async (_req, res, params) => {
+        try {
+            if (!isValidUUID(params.id)) {
+                return sendError(res, 'Invalid asset ID format', 400);
+            }
+
+            const { rows, rowCount } = await pool.query(
+                'SELECT * FROM assets WHERE id = $1',
+                [params.id]
+            );
+            if (rowCount === 0) return sendError(res, 'Asset not found', 404);
+            sendJson(res, rows[0]);
+        } catch (error) {
+            console.error('Error fetching asset:', error);
+            sendError(res, 'Failed to fetch asset');
+        }
+    },
+
+    // Serve asset image directly (for <img src="">)
+    'GET /api/assets/:id/image': async (_req, res, params) => {
+        try {
+            if (!isValidUUID(params.id)) {
+                res.writeHead(400);
+                res.end('Invalid ID');
+                return;
+            }
+
+            const { rows, rowCount } = await pool.query(
+                'SELECT data, type FROM assets WHERE id = $1',
+                [params.id]
+            );
+            if (rowCount === 0) {
+                res.writeHead(404);
+                res.end('Not found');
+                return;
+            }
+
+            const asset = rows[0];
+            // data is stored as data:image/png;base64,... format
+            const matches = asset.data.match(/^data:([^;]+);base64,(.+)$/);
+            if (!matches) {
+                res.writeHead(500);
+                res.end('Invalid data format');
+                return;
+            }
+
+            const mimeType = matches[1];
+            const base64Data = matches[2];
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            res.writeHead(200, {
+                'Content-Type': mimeType,
+                'Content-Length': buffer.length,
+                'Cache-Control': 'public, max-age=31536000' // Cache for 1 year
+            });
+            res.end(buffer);
+        } catch (error) {
+            console.error('Error serving asset image:', error);
+            res.writeHead(500);
+            res.end('Server error');
         }
     },
 

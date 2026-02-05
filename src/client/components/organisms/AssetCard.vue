@@ -101,7 +101,7 @@ const formattedType = computed(() => {
     <!-- Image preview -->
     <div class="asset-card__preview">
       <img
-        :src="asset.data"
+        :src="`/api/assets/${asset.id}/image`"
         :alt="asset.name"
         class="asset-card__image"
         loading="lazy"
