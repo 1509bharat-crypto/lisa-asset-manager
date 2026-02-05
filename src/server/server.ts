@@ -663,13 +663,12 @@ Respond ONLY with valid JSON in this exact format:
         }
     },
 
-    // === GOOGLE IMAGE SEARCH ===
+    // === SERPER IMAGE SEARCH (Google Images via Serper.dev) ===
     'GET /api/images/search': async (_req, res, _params, query) => {
-        const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-        const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
+        const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
-        if (!GOOGLE_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
-            return sendError(res, 'Google Search API not configured', 503);
+        if (!SERPER_API_KEY) {
+            return sendError(res, 'Serper API not configured', 503);
         }
 
         const searchQuery = query.q?.trim();
@@ -678,44 +677,44 @@ Respond ONLY with valid JSON in this exact format:
         }
 
         try {
-            console.log('Searching Google Images for:', searchQuery);
+            console.log('Searching Google Images via Serper for:', searchQuery);
 
-            const params = new URLSearchParams({
-                key: GOOGLE_API_KEY,
-                cx: GOOGLE_SEARCH_ENGINE_ID,
-                q: `${searchQuery} site:*.com OR site:*.org OR site:*.net`,
-                searchType: 'image',
-                num: '10',
-                safe: 'active'
+            const response = await fetch('https://google.serper.dev/images', {
+                method: 'POST',
+                headers: {
+                    'X-API-KEY': SERPER_API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    q: searchQuery,
+                    num: 20
+                })
             });
 
-            const response = await fetch(
-                `https://www.googleapis.com/customsearch/v1?${params}`
-            );
-
-            interface GoogleImageItem {
+            interface SerperImage {
                 title?: string;
-                link?: string;
-                image?: { thumbnailLink?: string; width?: number; height?: number };
-                displayLink?: string;
+                imageUrl?: string;
+                thumbnailUrl?: string;
+                imageWidth?: number;
+                imageHeight?: number;
+                source?: string;
             }
 
-            const data = await response.json() as { items?: GoogleImageItem[]; error?: { message?: string; code?: number } };
+            const data = await response.json() as { images?: SerperImage[]; error?: string };
 
             if (!response.ok) {
-                console.error('Google Search API error:', data);
-                const errorMsg = data.error?.message || `HTTP ${response.status}`;
-                return sendError(res, `Google API: ${errorMsg}`, response.status);
+                console.error('Serper API error:', data);
+                return sendError(res, data.error || `HTTP ${response.status}`, response.status);
             }
 
-            // Transform results to a simpler format
-            const images = (data.items || []).map((item) => ({
+            // Transform results to match our format
+            const images = (data.images || []).map((item) => ({
                 title: item.title || '',
-                url: item.link || '',
-                thumbnail: item.image?.thumbnailLink || item.link || '',
-                width: item.image?.width || 0,
-                height: item.image?.height || 0,
-                source: item.displayLink || ''
+                url: item.imageUrl || '',
+                thumbnail: item.thumbnailUrl || item.imageUrl || '',
+                width: item.imageWidth || 0,
+                height: item.imageHeight || 0,
+                source: item.source || ''
             }));
 
             console.log(`Found ${images.length} images for: ${searchQuery}`);
