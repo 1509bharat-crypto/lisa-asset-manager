@@ -685,7 +685,7 @@ const apiRoutes: Record<string, RouteHandler> = {
             const base64 = outputBuffer.toString('base64');
             const dataUrl = `data:image/png;base64,${base64}`;
 
-            console.log('Logo ready, size:', imageBuffer.length, 'bytes');
+            console.log('Logo ready, size:', outputBuffer.length, 'bytes');
             sendJson(res, { data: dataUrl });
         } catch (error) {
             console.error('Error processing logo:', error);
