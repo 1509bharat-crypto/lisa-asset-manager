@@ -28,6 +28,14 @@ try {
     console.log('OpenAI package not installed, AI features disabled');
 }
 
+// Optional Sharp for image processing
+let sharp: typeof import('sharp') | undefined;
+try {
+    sharp = require('sharp');
+} catch {
+    console.log('Sharp package not installed, image processing disabled');
+}
+
 // === Configuration ===
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const HOST = '0.0.0.0';
@@ -788,7 +796,20 @@ Respond ONLY with valid JSON in this exact format:
                 throw new Error('No image data returned');
             }
 
-            const dataUrl = `data:image/png;base64,${imageData}`;
+            let finalBase64 = imageData;
+
+            // Desaturate the image to remove any color tint
+            if (sharp) {
+                const inputBuffer = Buffer.from(imageData, 'base64');
+                const desaturatedBuffer = await sharp(inputBuffer)
+                    .grayscale() // Convert to grayscale (0 saturation)
+                    .png()
+                    .toBuffer();
+                finalBase64 = desaturatedBuffer.toString('base64');
+                console.log('Icon desaturated successfully');
+            }
+
+            const dataUrl = `data:image/png;base64,${finalBase64}`;
 
             console.log('Icon generated successfully for:', subject);
             sendJson(res, {
