@@ -25,7 +25,8 @@ import {
   Grid3x3,
   Move,
   Square,
-  CheckSquare
+  CheckSquare,
+  RefreshCw
 } from 'lucide-vue-next'
 
 type IconName =
@@ -55,6 +56,7 @@ type IconName =
   | 'move'
   | 'square'
   | 'check-square'
+  | 'refresh'
 
 interface Props {
   name: IconName
@@ -91,7 +93,8 @@ const iconMap = {
   'grid-large': Grid2x2,
   move: Move,
   square: Square,
-  'check-square': CheckSquare
+  'check-square': CheckSquare,
+  refresh: RefreshCw
 }
 </script>
 

@@ -21,28 +21,33 @@ interface GeneratedIcon {
 
 const iconSubject = ref('')
 const generatedIcons = ref<GeneratedIcon[]>([])
-const generating = ref(false)
+
+// Track how many are currently generating
+const generatingCount = computed(() => generatedIcons.value.filter(i => i.status === 'loading').length)
 
 // === ICON GENERATOR METHODS ===
 const selectedIconCount = computed(() => generatedIcons.value.filter(i => i.selected).length)
 const canAddIcons = computed(() => selectedIconCount.value > 0 && !saving.value)
 
-async function generateIcon() {
-  const subject = iconSubject.value.trim()
-  if (!subject || generating.value) return
+async function generateIconForSubject(subject: string, existingIcon?: GeneratedIcon) {
+  const iconId = existingIcon?.id || `icon-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-  generating.value = true
-  const iconId = `icon-${Date.now()}`
-
-  const icon: GeneratedIcon = {
+  const icon: GeneratedIcon = existingIcon || {
     id: iconId,
     subject,
     dataUrl: '',
     status: 'loading',
     selected: false
   }
-  generatedIcons.value.unshift(icon)
-  iconSubject.value = ''
+
+  if (existingIcon) {
+    // Reset for regeneration
+    icon.status = 'loading'
+    icon.dataUrl = ''
+    icon.error = undefined
+  } else {
+    generatedIcons.value.unshift(icon)
+  }
 
   try {
     const response = await fetch('/api/generate-icon', {
@@ -65,8 +70,21 @@ async function generateIcon() {
     icon.status = 'error'
     icon.error = 'Generation failed'
   }
+}
 
-  generating.value = false
+async function generateIcon() {
+  const subject = iconSubject.value.trim()
+  if (!subject) return
+
+  iconSubject.value = ''
+
+  // Start generation (don't await - allows parallel generation)
+  generateIconForSubject(subject)
+}
+
+async function regenerateIcon(icon: GeneratedIcon) {
+  if (icon.status === 'loading') return
+  generateIconForSubject(icon.subject, icon)
 }
 
 function toggleIconSelect(icon: GeneratedIcon) {
@@ -122,28 +140,23 @@ async function handleAddIcons() {
       </AppButton>
     </div>
 
-    <!-- Search/Input -->
-    <div class="logo-panel__search">
+    <!-- Input Section -->
+    <div class="logo-panel__input-section">
       <input
         v-model="iconSubject"
         class="logo-panel__input"
-        placeholder="Icon subject (e.g., shopping cart, bell)"
-        :disabled="generating"
+        placeholder="Enter icon subject..."
         @keydown.enter="generateIcon"
       />
       <AppButton
-        size="sm"
         @click="generateIcon"
-        :disabled="!iconSubject.trim() || generating"
-        :loading="generating"
+        :disabled="!iconSubject.trim()"
+        class="logo-panel__generate-btn"
       >
-        <AppIcon name="image" :size="14" />
+        <AppIcon name="plus" :size="16" />
         Generate
       </AppButton>
-    </div>
-
-    <div class="logo-panel__source">
-      AI-generated flat vector icons
+      <p class="logo-panel__hint">e.g., shopping cart, bell, user profile</p>
     </div>
 
     <!-- Results -->
@@ -151,6 +164,9 @@ async function handleAddIcons() {
       <div v-if="generatedIcons.length > 0" class="logo-panel__selection-bar">
         <span class="logo-panel__count">
           {{ selectedIconCount }} of {{ generatedIcons.length }} selected
+          <span v-if="generatingCount > 0" class="logo-panel__generating">
+            ({{ generatingCount }} generating...)
+          </span>
         </span>
         <div class="logo-panel__selection-actions">
           <button @click="selectAllIcons">All</button>
@@ -175,9 +191,24 @@ async function handleAddIcons() {
             <AppIcon :name="icon.selected ? 'check-square' : 'square'" :size="16" />
           </div>
 
-          <button class="logo-panel__remove" @click.stop="removeIcon(icon.id)">
-            <AppIcon name="x" :size="12" />
-          </button>
+          <!-- Action buttons -->
+          <div class="logo-panel__card-actions">
+            <button
+              v-if="icon.status !== 'loading'"
+              class="logo-panel__action-btn"
+              @click.stop="regenerateIcon(icon)"
+              title="Regenerate"
+            >
+              <AppIcon name="refresh" :size="12" />
+            </button>
+            <button
+              class="logo-panel__action-btn logo-panel__action-btn--remove"
+              @click.stop="removeIcon(icon.id)"
+              title="Remove"
+            >
+              <AppIcon name="x" :size="12" />
+            </button>
+          </div>
 
           <div class="logo-panel__preview">
             <AppSpinner v-if="icon.status === 'loading'" size="sm" />
@@ -241,15 +272,16 @@ async function handleAddIcons() {
   margin: 0;
 }
 
-.logo-panel__search {
-  display: flex;
-  gap: var(--space-sm);
+.logo-panel__input-section {
   padding: var(--space-md);
-  padding-bottom: var(--space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .logo-panel__input {
-  flex: 1;
+  width: 100%;
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -263,17 +295,20 @@ async function handleAddIcons() {
   border-color: var(--color-primary);
 }
 
-.logo-panel__source {
-  padding: 0 var(--space-md) var(--space-sm);
+.logo-panel__generate-btn {
+  width: 100%;
+}
+
+.logo-panel__hint {
   font-size: 11px;
   color: var(--color-text-muted);
+  margin: 0;
 }
 
 .logo-panel__results {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-md);
-  padding-top: var(--space-sm);
 }
 
 .logo-panel__selection-bar {
@@ -288,6 +323,10 @@ async function handleAddIcons() {
 .logo-panel__count {
   font-size: 12px;
   color: var(--color-text-muted);
+}
+
+.logo-panel__generating {
+  color: var(--color-primary);
 }
 
 .logo-panel__selection-actions {
@@ -342,8 +381,7 @@ async function handleAddIcons() {
 }
 
 .logo-panel__card--error {
-  cursor: not-allowed;
-  opacity: 0.5;
+  cursor: pointer;
 }
 
 .logo-panel__card--loading {
@@ -357,26 +395,43 @@ async function handleAddIcons() {
   color: var(--color-primary);
 }
 
-.logo-panel__remove {
+.logo-panel__card-actions {
   position: absolute;
   top: 4px;
   right: 4px;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: 2px;
-  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 2px;
   opacity: 0;
   transition: opacity 0.15s;
 }
 
-.logo-panel__card:hover .logo-panel__remove {
+.logo-panel__card:hover .logo-panel__card-actions {
   opacity: 1;
 }
 
-.logo-panel__remove:hover {
-  color: var(--color-error);
+.logo-panel__action-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.logo-panel__action-btn:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.logo-panel__action-btn--remove:hover {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: white;
 }
 
 .logo-panel__preview {

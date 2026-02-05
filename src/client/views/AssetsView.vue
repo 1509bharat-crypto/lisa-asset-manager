@@ -307,8 +307,8 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
           :class="{ 'assets-view__logo-btn--active': showLogoFinderPanel }"
           @click="showLogoFinderPanel = !showLogoFinderPanel"
         >
-          <AppIcon name="search" :size="16" />
-          Find Logo
+          <AppIcon name="image" :size="16" />
+          Generate Icon
         </AppButton>
         <AppButton
           size="sm"
