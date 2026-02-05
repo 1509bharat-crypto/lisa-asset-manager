@@ -759,6 +759,105 @@ Respond ONLY with valid JSON in this exact format:
         }
     },
 
+    // === GOOGLE IMAGE SEARCH ===
+    'GET /api/images/search': async (_req, res, _params, query) => {
+        const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+        const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
+
+        if (!GOOGLE_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
+            return sendError(res, 'Google Search API not configured', 503);
+        }
+
+        const searchQuery = query.q?.trim();
+        if (!searchQuery) {
+            return sendError(res, 'No search query provided', 400);
+        }
+
+        try {
+            console.log('Searching Google Images for:', searchQuery);
+
+            const params = new URLSearchParams({
+                key: GOOGLE_API_KEY,
+                cx: GOOGLE_SEARCH_ENGINE_ID,
+                q: searchQuery,
+                searchType: 'image',
+                num: '10',
+                safe: 'active'
+            });
+
+            const response = await fetch(
+                `https://www.googleapis.com/customsearch/v1?${params}`
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Google Search API error:', errorData);
+                throw new Error(`Google Search API error: ${response.status}`);
+            }
+
+            interface GoogleImageItem {
+                title?: string;
+                link?: string;
+                image?: { thumbnailLink?: string; width?: number; height?: number };
+                displayLink?: string;
+            }
+            const data = await response.json() as { items?: GoogleImageItem[] };
+
+            // Transform results to a simpler format
+            const images = (data.items || []).map((item) => ({
+                title: item.title || '',
+                url: item.link || '',
+                thumbnail: item.image?.thumbnailLink || item.link || '',
+                width: item.image?.width || 0,
+                height: item.image?.height || 0,
+                source: item.displayLink || ''
+            }));
+
+            console.log(`Found ${images.length} images for: ${searchQuery}`);
+            sendJson(res, { images, query: searchQuery });
+        } catch (error) {
+            console.error('Error searching images:', error);
+            sendError(res, 'Failed to search images');
+        }
+    },
+
+    // Process image from URL (fetch and convert to data URL)
+    'POST /api/images/process': async (req, res) => {
+        try {
+            const body = await parseBody(req) as { url?: string; title?: string };
+            if (!body.url) {
+                return sendError(res, 'No URL provided', 400);
+            }
+
+            console.log('Fetching image from:', body.url);
+
+            const response = await fetch(body.url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; AssetLibrary/1.0)'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const contentType = response.headers.get('content-type') || 'image/png';
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            // Convert to base64 data URL
+            const base64 = buffer.toString('base64');
+            const mimeType = contentType.split(';')[0].trim();
+            const dataUrl = `data:${mimeType};base64,${base64}`;
+
+            console.log('Image processed, size:', buffer.length, 'bytes');
+            sendJson(res, { data: dataUrl, size: buffer.length });
+        } catch (error) {
+            console.error('Error processing image:', error);
+            sendError(res, 'Failed to fetch image');
+        }
+    },
+
     // === AI ICON GENERATION ===
     'POST /api/generate-icon': async (req, res) => {
         if (!openai) {
