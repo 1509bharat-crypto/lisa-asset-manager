@@ -675,7 +675,7 @@ Respond ONLY with valid JSON in this exact format:
             const params = new URLSearchParams({
                 key: GOOGLE_API_KEY,
                 cx: GOOGLE_SEARCH_ENGINE_ID,
-                q: searchQuery,
+                q: `${searchQuery} site:*.com OR site:*.org OR site:*.net`,
                 searchType: 'image',
                 num: '10',
                 safe: 'active'
