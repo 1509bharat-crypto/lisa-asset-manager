@@ -752,13 +752,13 @@ async function handleAddImages() {
 }
 
 .logo-panel__preview--image {
-  background: var(--bg-primary);
+  background: #fff;
 }
 
 .logo-panel__preview--image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
 }
 
 .logo-panel__error-overlay {
