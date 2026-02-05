@@ -8,46 +8,21 @@ const emit = defineEmits<{
 }>()
 
 const saving = ref(false)
-
-// === ICON GENERATOR STATE ===
-interface GeneratedIcon {
-  id: string
-  subject: string
-  dataUrl: string
-  status: 'loading' | 'success' | 'error'
-  selected: boolean
-  error?: string
-}
-
 const iconSubject = ref('')
-const generatedIcons = ref<GeneratedIcon[]>([])
+const isGenerating = ref(false)
+const generatedIcon = ref<{ dataUrl: string; subject: string } | null>(null)
+const error = ref<string | null>(null)
 
-// Track how many are currently generating
-const generatingCount = computed(() => generatedIcons.value.filter(i => i.status === 'loading').length)
+const canGenerate = computed(() => iconSubject.value.trim() && !isGenerating.value)
+const canAdd = computed(() => generatedIcon.value && !saving.value && !isGenerating.value)
 
-// === ICON GENERATOR METHODS ===
-const selectedIconCount = computed(() => generatedIcons.value.filter(i => i.selected).length)
-const canAddIcons = computed(() => selectedIconCount.value > 0 && !saving.value)
+async function generateIcon() {
+  const subject = iconSubject.value.trim()
+  if (!subject || isGenerating.value) return
 
-async function generateIconForSubject(subject: string, existingIcon?: GeneratedIcon) {
-  const iconId = existingIcon?.id || `icon-${Date.now()}-${Math.random().toString(36).slice(2)}`
-
-  const icon: GeneratedIcon = existingIcon || {
-    id: iconId,
-    subject,
-    dataUrl: '',
-    status: 'loading',
-    selected: false
-  }
-
-  if (existingIcon) {
-    // Reset for regeneration
-    icon.status = 'loading'
-    icon.dataUrl = ''
-    icon.error = undefined
-  } else {
-    generatedIcons.value.unshift(icon)
-  }
+  isGenerating.value = true
+  error.value = null
+  generatedIcon.value = null
 
   try {
     const response = await fetch('/api/generate-icon', {
@@ -59,73 +34,30 @@ async function generateIconForSubject(subject: string, existingIcon?: GeneratedI
     const data = await response.json()
 
     if (data.error) {
-      icon.status = 'error'
-      icon.error = data.error
+      error.value = data.error
     } else if (data.data) {
-      icon.dataUrl = data.data
-      icon.status = 'success'
+      generatedIcon.value = { dataUrl: data.data, subject }
     }
   } catch (e) {
     console.error('Failed to generate icon:', e)
-    icon.status = 'error'
-    icon.error = 'Generation failed'
+    error.value = 'Generation failed'
+  } finally {
+    isGenerating.value = false
   }
 }
 
-async function generateIcon() {
-  const subject = iconSubject.value.trim()
-  if (!subject) return
-
-  iconSubject.value = ''
-
-  // Start generation (don't await - allows parallel generation)
-  generateIconForSubject(subject)
-}
-
-async function regenerateIcon(icon: GeneratedIcon) {
-  if (icon.status === 'loading') return
-  generateIconForSubject(icon.subject, icon)
-}
-
-function toggleIconSelect(icon: GeneratedIcon) {
-  if (icon.status === 'success') {
-    icon.selected = !icon.selected
-  }
-}
-
-function selectAllIcons() {
-  generatedIcons.value.forEach(i => {
-    if (i.status === 'success') i.selected = true
-  })
-}
-
-function deselectAllIcons() {
-  generatedIcons.value.forEach(i => i.selected = false)
-}
-
-function removeIcon(id: string) {
-  generatedIcons.value = generatedIcons.value.filter(i => i.id !== id)
-}
-
-function clearAllIcons() {
-  generatedIcons.value = []
-}
-
-async function handleAddIcons() {
-  const selected = generatedIcons.value.filter(i => i.selected && i.dataUrl)
-  if (selected.length === 0) return
+async function handleAdd() {
+  if (!generatedIcon.value) return
 
   saving.value = true
-  const icons = selected.map(i => ({
-    dataUrl: i.dataUrl,
-    brandName: i.subject
-  }))
+  emit('add', [{
+    dataUrl: generatedIcon.value.dataUrl,
+    brandName: generatedIcon.value.subject
+  }])
 
-  emit('add', icons)
-
-  const addedIds = new Set(selected.map(i => i.id))
-  generatedIcons.value = generatedIcons.value.filter(i => !addedIds.has(i.id))
-
+  // Clear after adding
+  generatedIcon.value = null
+  iconSubject.value = ''
   saving.value = false
 }
 </script>
@@ -134,7 +66,7 @@ async function handleAddIcons() {
   <div class="logo-panel">
     <!-- Header -->
     <div class="logo-panel__header">
-      <h3 class="logo-panel__title">Generate Icons</h3>
+      <h3 class="logo-panel__title">Generate Icon</h3>
       <AppButton variant="ghost" size="sm" @click="emit('close')">
         <AppIcon name="x" :size="18" />
       </AppButton>
@@ -146,87 +78,55 @@ async function handleAddIcons() {
         v-model="iconSubject"
         class="logo-panel__input"
         placeholder="Enter icon subject..."
+        :disabled="isGenerating"
         @keydown.enter="generateIcon"
       />
       <AppButton
         @click="generateIcon"
-        :disabled="!iconSubject.trim()"
+        :disabled="!canGenerate"
+        :loading="isGenerating"
         class="logo-panel__generate-btn"
       >
-        <AppIcon name="plus" :size="16" />
-        Generate
+        <AppIcon v-if="!isGenerating" name="plus" :size="16" />
+        {{ isGenerating ? 'Generating...' : 'Generate' }}
       </AppButton>
       <p class="logo-panel__hint">e.g., shopping cart, bell, user profile</p>
     </div>
 
-    <!-- Results -->
-    <div class="logo-panel__results">
-      <div v-if="generatedIcons.length > 0" class="logo-panel__selection-bar">
-        <span class="logo-panel__count">
-          {{ selectedIconCount }} of {{ generatedIcons.length }} selected
-          <span v-if="generatingCount > 0" class="logo-panel__generating">
-            ({{ generatingCount }} generating...)
-          </span>
-        </span>
-        <div class="logo-panel__selection-actions">
-          <button @click="selectAllIcons">All</button>
-          <button @click="deselectAllIcons">None</button>
-          <button @click="clearAllIcons">Clear</button>
+    <!-- Preview Area -->
+    <div class="logo-panel__preview-area">
+      <!-- Loading state -->
+      <div v-if="isGenerating" class="logo-panel__loading">
+        <AppSpinner size="lg" />
+        <p>Generating icon...</p>
+      </div>
+
+      <!-- Error state -->
+      <div v-else-if="error" class="logo-panel__error-state">
+        <AppIcon name="alert-circle" :size="32" />
+        <p>{{ error }}</p>
+        <AppButton variant="secondary" size="sm" @click="generateIcon">
+          <AppIcon name="refresh" :size="14" />
+          Try Again
+        </AppButton>
+      </div>
+
+      <!-- Generated icon -->
+      <div v-else-if="generatedIcon" class="logo-panel__result">
+        <div class="logo-panel__preview">
+          <img :src="generatedIcon.dataUrl" :alt="generatedIcon.subject" />
+        </div>
+        <div class="logo-panel__result-name">{{ generatedIcon.subject }}</div>
+        <div class="logo-panel__result-actions">
+          <AppButton variant="secondary" size="sm" @click="generateIcon">
+            <AppIcon name="refresh" :size="14" />
+            Regenerate
+          </AppButton>
         </div>
       </div>
 
-      <div class="logo-panel__grid">
-        <div
-          v-for="icon in generatedIcons"
-          :key="icon.id"
-          :class="[
-            'logo-panel__card',
-            { 'logo-panel__card--selected': icon.selected },
-            { 'logo-panel__card--error': icon.status === 'error' },
-            { 'logo-panel__card--loading': icon.status === 'loading' }
-          ]"
-          @click="toggleIconSelect(icon)"
-        >
-          <div class="logo-panel__checkbox" v-if="icon.status === 'success'">
-            <AppIcon :name="icon.selected ? 'check-square' : 'square'" :size="16" />
-          </div>
-
-          <!-- Action buttons -->
-          <div class="logo-panel__card-actions">
-            <button
-              v-if="icon.status !== 'loading'"
-              class="logo-panel__action-btn"
-              @click.stop="regenerateIcon(icon)"
-              title="Regenerate"
-            >
-              <AppIcon name="refresh" :size="12" />
-            </button>
-            <button
-              class="logo-panel__action-btn logo-panel__action-btn--remove"
-              @click.stop="removeIcon(icon.id)"
-              title="Remove"
-            >
-              <AppIcon name="x" :size="12" />
-            </button>
-          </div>
-
-          <div class="logo-panel__preview">
-            <AppSpinner v-if="icon.status === 'loading'" size="sm" />
-            <img
-              v-else-if="icon.dataUrl"
-              :src="icon.dataUrl"
-              :alt="icon.subject"
-            />
-            <div v-if="icon.status === 'error'" class="logo-panel__error">
-              <AppIcon name="alert-circle" :size="20" />
-            </div>
-          </div>
-
-          <div class="logo-panel__name">{{ icon.subject }}</div>
-        </div>
-      </div>
-
-      <div v-if="generatedIcons.length === 0" class="logo-panel__empty">
+      <!-- Empty state -->
+      <div v-else class="logo-panel__empty">
         <AppIcon name="image" :size="32" />
         <p>Generate flat vector icons with AI</p>
         <p class="logo-panel__empty-hint">Grey tones, no gradients, transparent BG</p>
@@ -236,13 +136,13 @@ async function handleAddIcons() {
     <!-- Footer -->
     <div class="logo-panel__footer">
       <AppButton
-        :disabled="!canAddIcons"
+        :disabled="!canAdd"
         :loading="saving"
-        @click="handleAddIcons"
+        @click="handleAdd"
         class="logo-panel__add-btn"
       >
         <AppIcon name="plus" :size="16" />
-        Add {{ selectedIconCount > 0 ? selectedIconCount : '' }} Icon{{ selectedIconCount !== 1 ? 's' : '' }}
+        Add to Project
       </AppButton>
     </div>
   </div>
@@ -295,6 +195,11 @@ async function handleAddIcons() {
   border-color: var(--color-primary);
 }
 
+.logo-panel__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .logo-panel__generate-btn {
   width: 100%;
 }
@@ -305,146 +210,60 @@ async function handleAddIcons() {
   margin: 0;
 }
 
-.logo-panel__results {
+.logo-panel__preview-area {
   flex: 1;
-  overflow-y: auto;
-  padding: var(--space-md);
-}
-
-.logo-panel__selection-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-sm);
-  padding-bottom: var(--space-sm);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.logo-panel__count {
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.logo-panel__generating {
-  color: var(--color-primary);
-}
-
-.logo-panel__selection-actions {
-  display: flex;
-  gap: var(--space-xs);
-}
-
-.logo-panel__selection-actions button {
-  padding: 2px 8px;
-  font-size: 11px;
-  background: var(--bg-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.logo-panel__selection-actions button:hover {
-  background: var(--color-primary-light);
-}
-
-.logo-panel__grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-sm);
-}
-
-.logo-panel__card {
-  position: relative;
-  background: var(--bg-primary);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-sm);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xs);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  overflow: hidden;
-  min-width: 0;
-}
-
-.logo-panel__card:hover {
-  border-color: var(--color-text-muted);
-}
-
-.logo-panel__card--selected {
-  border-color: var(--color-primary);
-  background: var(--color-primary-light);
-}
-
-.logo-panel__card--error {
-  cursor: pointer;
-}
-
-.logo-panel__card--loading {
-  cursor: wait;
-}
-
-.logo-panel__checkbox {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  color: var(--color-primary);
-}
-
-.logo-panel__card-actions {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.logo-panel__card:hover .logo-panel__card-actions {
-  opacity: 1;
-}
-
-.logo-panel__action-btn {
-  background: var(--bg-secondary);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  padding: var(--space-lg);
+  overflow-y: auto;
 }
 
-.logo-panel__action-btn:hover {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: white;
+.logo-panel__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  color: var(--color-text-muted);
 }
 
-.logo-panel__action-btn--remove:hover {
-  background: var(--color-error);
-  border-color: var(--color-error);
-  color: white;
+.logo-panel__loading p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.logo-panel__error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  color: var(--color-error);
+  text-align: center;
+}
+
+.logo-panel__error-state p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.logo-panel__result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
 }
 
 .logo-panel__preview {
-  width: 100%;
-  max-width: 100%;
-  aspect-ratio: 165 / 112;
+  width: 200px;
+  height: 136px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #fff;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
 }
 
 .logo-panel__preview img {
@@ -453,19 +272,15 @@ async function handleAddIcons() {
   object-fit: contain;
 }
 
-.logo-panel__error {
-  color: var(--color-error);
+.logo-panel__result-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
 }
 
-.logo-panel__name {
-  font-size: 11px;
-  font-weight: var(--font-weight-medium);
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  width: 100%;
-  color: var(--color-text-primary);
+.logo-panel__result-actions {
+  display: flex;
+  gap: var(--space-sm);
 }
 
 .logo-panel__empty {
