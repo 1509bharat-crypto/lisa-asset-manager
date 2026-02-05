@@ -28,14 +28,6 @@ try {
     console.log('OpenAI package not installed, AI features disabled');
 }
 
-// Optional Sharp for image processing
-let sharp: typeof import('sharp') | undefined;
-try {
-    sharp = require('sharp');
-} catch {
-    console.log('Sharp package not installed, image processing disabled');
-}
-
 // === Configuration ===
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const HOST = '0.0.0.0';
@@ -597,166 +589,6 @@ const apiRoutes: Record<string, RouteHandler> = {
         }
     },
 
-    // === LOGO PROCESSING ===
-    // Search for brand logos using Brandfetch API
-    'GET /api/logo/search': async (req, res, _params, query) => {
-        const BRANDFETCH_API_KEY = process.env.BRANDFETCH_API_KEY;
-        if (!BRANDFETCH_API_KEY) {
-            return sendError(res, 'Brandfetch API key not configured', 503);
-        }
-
-        const brandName = query.q;
-        if (!brandName) {
-            return sendError(res, 'No brand name provided', 400);
-        }
-
-        try {
-            console.log('Searching Brandfetch for:', brandName);
-
-            // Use Brandfetch Brand Search API
-            const searchResponse = await fetch(
-                `https://api.brandfetch.io/v2/search/${encodeURIComponent(brandName)}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${BRANDFETCH_API_KEY}`
-                    }
-                }
-            );
-
-            if (!searchResponse.ok) {
-                throw new Error(`Brandfetch search failed: ${searchResponse.status}`);
-            }
-
-            const results = await searchResponse.json();
-            sendJson(res, results);
-        } catch (error) {
-            console.error('Error searching brands:', error);
-            sendError(res, 'Failed to search brands');
-        }
-    },
-
-    // Fetch brand details including logos from Brandfetch
-    'GET /api/logo/brand/:domain': async (req, res, params) => {
-        const BRANDFETCH_API_KEY = process.env.BRANDFETCH_API_KEY;
-        if (!BRANDFETCH_API_KEY) {
-            return sendError(res, 'Brandfetch API key not configured', 503);
-        }
-
-        const domain = params.domain;
-        if (!domain) {
-            return sendError(res, 'No domain provided', 400);
-        }
-
-        try {
-            console.log('Fetching brand from Brandfetch:', domain);
-
-            const brandResponse = await fetch(
-                `https://api.brandfetch.io/v2/brands/${encodeURIComponent(domain)}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${BRANDFETCH_API_KEY}`
-                    }
-                }
-            );
-
-            if (!brandResponse.ok) {
-                throw new Error(`Brandfetch brand fetch failed: ${brandResponse.status}`);
-            }
-
-            const brandData = await brandResponse.json();
-            sendJson(res, brandData);
-        } catch (error) {
-            console.error('Error fetching brand:', error);
-            sendError(res, 'Failed to fetch brand');
-        }
-    },
-
-    // Process logo: fetch, add white background, resize to 165x112
-    'POST /api/logo/process': async (req, res) => {
-        try {
-            const body = await parseBody(req) as { url?: string; name?: string };
-            if (!body.url) {
-                return sendError(res, 'No URL provided', 400);
-            }
-
-            console.log('Fetching logo from:', body.url);
-
-            // Fetch the logo image
-            const response = await fetch(body.url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; AssetLibrary/1.0)'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const arrayBuffer = await response.arrayBuffer();
-            const inputBuffer = Buffer.from(arrayBuffer);
-            let outputBuffer: Buffer = inputBuffer;
-
-            // Process with Sharp if available
-            if (sharp) {
-                console.log('Processing logo with Sharp...');
-                const TARGET_WIDTH = 165;
-                const TARGET_HEIGHT = 112;
-                const PADDING = 12; // Padding around logo
-
-                // Calculate the area available for the logo (minus padding)
-                const logoMaxWidth = TARGET_WIDTH - (PADDING * 2);
-                const logoMaxHeight = TARGET_HEIGHT - (PADDING * 2);
-
-                // Process the image:
-                // 1. Flatten transparency to white background
-                // 2. Resize to fit within the logo area (maintaining aspect ratio)
-                // 3. Extend to exact dimensions with white background (adds padding)
-                const resizedLogo = await sharp(inputBuffer)
-                    .flatten({ background: { r: 255, g: 255, b: 255 } })
-                    .resize(logoMaxWidth, logoMaxHeight, {
-                        fit: 'inside',
-                        withoutEnlargement: false
-                    })
-                    .toBuffer();
-
-                // Get dimensions of resized logo
-                const metadata = await sharp(resizedLogo).metadata();
-                const logoWidth = metadata.width || logoMaxWidth;
-                const logoHeight = metadata.height || logoMaxHeight;
-
-                // Calculate padding to center the logo
-                const leftPadding = Math.floor((TARGET_WIDTH - logoWidth) / 2);
-                const rightPadding = TARGET_WIDTH - logoWidth - leftPadding;
-                const topPadding = Math.floor((TARGET_HEIGHT - logoHeight) / 2);
-                const bottomPadding = TARGET_HEIGHT - logoHeight - topPadding;
-
-                // Extend to final dimensions with white background
-                outputBuffer = await sharp(resizedLogo)
-                    .extend({
-                        top: topPadding,
-                        bottom: bottomPadding,
-                        left: leftPadding,
-                        right: rightPadding,
-                        background: { r: 255, g: 255, b: 255 }
-                    })
-                    .png()
-                    .toBuffer();
-
-                console.log('Logo processed: 165x112 with white background');
-            }
-
-            // Convert to base64 data URL
-            const base64 = outputBuffer.toString('base64');
-            const dataUrl = `data:image/png;base64,${base64}`;
-
-            console.log('Logo ready, size:', outputBuffer.length, 'bytes');
-            sendJson(res, { data: dataUrl });
-        } catch (error) {
-            console.error('Error processing logo:', error);
-            sendError(res, 'Failed to fetch logo');
-        }
-    },
-
     // === AI IMAGE ANALYSIS ===
     'POST /api/analyze-image': async (req, res) => {
         if (!openai) {
@@ -937,16 +769,17 @@ Respond ONLY with valid JSON in this exact format:
             const subject = body.subject.trim();
             console.log('Generating icon for:', subject);
 
-            // Build the prompt with the specific style
-            const prompt = `flat vector icon, soft rounded shapes, solid flat fills only, 4 distinct shades of grey, transparent background, no outlines, no strokes, no gradients, no shadows, no lighting effects, ${subject}, depth only from overlapping shapes, matte, minimal`;
+            // Build the prompt with the specific style - optimized for gpt-image-1
+            const prompt = `A flat vector icon of ${subject}. Style: soft rounded shapes, solid flat fills only, 4 distinct shades of grey, transparent background, no outlines, no strokes, no gradients, no shadows, no lighting effects, depth only from overlapping shapes, matte, minimal, centered composition.`;
 
             const response = await openai.images.generate({
-                model: 'dall-e-3',
+                model: 'gpt-image-1',
                 prompt: prompt,
                 n: 1,
                 size: '1024x1024',
-                quality: 'standard',
-                response_format: 'b64_json'
+                quality: 'low',
+                background: 'transparent',
+                output_format: 'png'
             });
 
             const imageData = response.data?.[0]?.b64_json;

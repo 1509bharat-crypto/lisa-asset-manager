@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { AppButton, AppSpinner, AppIcon } from '../atoms'
 
 const emit = defineEmits<{
@@ -8,46 +8,10 @@ const emit = defineEmits<{
 }>()
 
 // === TAB STATE ===
-type Tab = 'logos' | 'images' | 'generate'
-const activeTab = ref<Tab>('logos')
+type Tab = 'images' | 'generate'
+const activeTab = ref<Tab>('images')
 
-// === LOGO FINDER STATE ===
-const FALLBACK_PROVIDERS = [
-  (d: string) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
-  (d: string) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
-]
-
-interface BrandSearchResult {
-  name: string
-  domain: string
-  icon?: string
-  brandId?: string
-}
-
-interface BrandLogo {
-  type: string
-  theme: string
-  formats: { src: string; format: string }[]
-}
-
-interface BrandResult {
-  name: string
-  domain: string
-  logoUrl: string | null
-  logos: BrandLogo[]
-  status: 'loading' | 'success' | 'error'
-  fallbackIndex: number
-  useBrandfetch: boolean
-  selected: boolean
-}
-
-const brandInput = ref('')
-const textareaRef = ref<HTMLTextAreaElement | null>(null)
-const searchResults = ref<BrandResult[]>([])
 const saving = ref(false)
-const searching = ref(false)
-const brandfetchAvailable = ref(true)
-const logoBgColor = ref<'white' | 'transparent'>('white')
 
 // === ICON GENERATOR STATE ===
 interface GeneratedIcon {
@@ -81,251 +45,6 @@ const imageSearchQuery = ref('')
 const imageResults = ref<ImageResult[]>([])
 const searchingImages = ref(false)
 const imageSearchAvailable = ref(true)
-
-// Auto-expand textarea
-function autoResize() {
-  const textarea = textareaRef.value
-  if (textarea) {
-    textarea.style.height = 'auto'
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px'
-  }
-}
-
-watch(brandInput, () => {
-  nextTick(autoResize)
-})
-
-// === LOGO FINDER METHODS ===
-const selectedCount = computed(() => searchResults.value.filter(r => r.selected).length)
-const canAdd = computed(() => selectedCount.value > 0 && !saving.value)
-
-async function searchBrands() {
-  const text = brandInput.value.trim()
-  if (!text) return
-
-  const names = text.split(/[\n,;]+/).map(l => l.trim()).filter(l => l.length > 0)
-  brandInput.value = ''
-  searching.value = true
-
-  for (const name of names) {
-    if (searchResults.value.find(r => r.name.toLowerCase() === name.toLowerCase())) {
-      continue
-    }
-
-    const result: BrandResult = {
-      name,
-      domain: '',
-      logoUrl: null,
-      logos: [],
-      status: 'loading',
-      fallbackIndex: 0,
-      useBrandfetch: brandfetchAvailable.value,
-      selected: false
-    }
-    searchResults.value.push(result)
-
-    try {
-      const searchResponse = await fetch(`/api/logo/search?q=${encodeURIComponent(name)}`)
-
-      if (searchResponse.status === 503) {
-        brandfetchAvailable.value = false
-        result.useBrandfetch = false
-        result.domain = guessDomain(name)
-        continue
-      }
-
-      if (!searchResponse.ok) {
-        throw new Error('Search failed')
-      }
-
-      const searchData: BrandSearchResult[] = await searchResponse.json()
-
-      if (searchData.length === 0) {
-        result.useBrandfetch = false
-        result.domain = guessDomain(name)
-        continue
-      }
-
-      const firstResult = searchData[0]
-      result.domain = firstResult.domain
-      result.name = firstResult.name || name
-
-      const brandResponse = await fetch(`/api/logo/brand/${encodeURIComponent(firstResult.domain)}`)
-
-      if (!brandResponse.ok) {
-        throw new Error('Brand fetch failed')
-      }
-
-      const brandData = await brandResponse.json()
-      const logos = brandData.logos || []
-      result.logos = logos
-
-      let bestLogo: string | null = null
-
-      for (const logo of logos) {
-        if (logo.type === 'logo' && logo.theme === 'light') {
-          const pngFormat = logo.formats?.find((f: { format: string }) => f.format === 'png')
-          if (pngFormat) {
-            bestLogo = pngFormat.src
-            break
-          }
-          const svgFormat = logo.formats?.find((f: { format: string }) => f.format === 'svg')
-          if (svgFormat) {
-            bestLogo = svgFormat.src
-            break
-          }
-        }
-      }
-
-      if (!bestLogo) {
-        for (const logo of logos) {
-          if (logo.type === 'logo') {
-            const pngFormat = logo.formats?.find((f: { format: string }) => f.format === 'png')
-            if (pngFormat) {
-              bestLogo = pngFormat.src
-              break
-            }
-          }
-        }
-      }
-
-      if (!bestLogo) {
-        for (const logo of logos) {
-          if (logo.type === 'icon') {
-            const pngFormat = logo.formats?.find((f: { format: string }) => f.format === 'png')
-            if (pngFormat) {
-              bestLogo = pngFormat.src
-              break
-            }
-          }
-        }
-      }
-
-      if (!bestLogo && logos.length > 0) {
-        const firstLogo = logos[0]
-        if (firstLogo.formats?.length > 0) {
-          bestLogo = firstLogo.formats[0].src
-        }
-      }
-
-      if (bestLogo) {
-        result.logoUrl = bestLogo
-        result.status = 'success'
-      } else {
-        result.useBrandfetch = false
-      }
-
-    } catch (e) {
-      console.error('Brandfetch search failed for', name, e)
-      result.useBrandfetch = false
-      result.domain = guessDomain(name)
-    }
-  }
-
-  searching.value = false
-}
-
-function guessDomain(name: string): string {
-  const lower = name.toLowerCase().trim()
-  const cleaned = lower.replace(/[^a-z0-9]/g, '').trim()
-  return cleaned ? `${cleaned}.com` : ''
-}
-
-function handleImageLoad(result: BrandResult) {
-  result.status = 'success'
-}
-
-function handleImageError(result: BrandResult) {
-  if (result.useBrandfetch) {
-    result.useBrandfetch = false
-    result.logoUrl = null
-    result.fallbackIndex = 0
-    return
-  }
-
-  result.fallbackIndex++
-  if (result.fallbackIndex < FALLBACK_PROVIDERS.length) {
-    result.logoUrl = FALLBACK_PROVIDERS[result.fallbackIndex](result.domain)
-  } else {
-    result.status = 'error'
-    result.logoUrl = null
-  }
-}
-
-function getLogoUrl(result: BrandResult): string {
-  if (!result.domain && !result.logoUrl) return ''
-  if (result.logoUrl) return result.logoUrl
-
-  if (!result.useBrandfetch && result.domain) {
-    result.logoUrl = FALLBACK_PROVIDERS[result.fallbackIndex](result.domain)
-    return result.logoUrl
-  }
-
-  return ''
-}
-
-function toggleSelect(result: BrandResult) {
-  if (result.status === 'success') {
-    result.selected = !result.selected
-  }
-}
-
-function selectAll() {
-  searchResults.value.forEach(r => {
-    if (r.status === 'success') r.selected = true
-  })
-}
-
-function deselectAll() {
-  searchResults.value.forEach(r => r.selected = false)
-}
-
-function removeBrand(name: string) {
-  searchResults.value = searchResults.value.filter(r => r.name !== name)
-}
-
-function clearAll() {
-  searchResults.value = []
-}
-
-async function handleAddLogos() {
-  const selected = searchResults.value.filter(r => r.selected && r.logoUrl)
-  if (selected.length === 0) return
-
-  saving.value = true
-  const processedLogos: { dataUrl: string; brandName: string }[] = []
-
-  for (const brand of selected) {
-    try {
-      const response = await fetch('/api/logo/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: brand.logoUrl,
-          name: brand.name
-        })
-      })
-
-      const data = await response.json()
-      if (!data.error && data.data) {
-        processedLogos.push({
-          dataUrl: data.data,
-          brandName: brand.name
-        })
-      }
-    } catch (e) {
-      console.error('Failed to process logo for', brand.name, e)
-    }
-  }
-
-  if (processedLogos.length > 0) {
-    emit('add', processedLogos)
-    const addedNames = new Set(processedLogos.map(l => l.brandName))
-    searchResults.value = searchResults.value.filter(r => !addedNames.has(r.name))
-  }
-
-  saving.value = false
-}
 
 // === ICON GENERATOR METHODS ===
 const selectedIconCount = computed(() => generatedIcons.value.filter(i => i.selected).length)
@@ -574,13 +293,6 @@ async function handleAddImages() {
     <!-- Tabs -->
     <div class="logo-panel__tabs">
       <button
-        :class="['logo-panel__tab', { 'logo-panel__tab--active': activeTab === 'logos' }]"
-        @click="activeTab = 'logos'"
-      >
-        <AppIcon name="search" :size="14" />
-        Logos
-      </button>
-      <button
         :class="['logo-panel__tab', { 'logo-panel__tab--active': activeTab === 'images' }]"
         @click="activeTab = 'images'"
       >
@@ -595,127 +307,6 @@ async function handleAddImages() {
         Generate
       </button>
     </div>
-
-    <!-- LOGO FINDER TAB -->
-    <template v-if="activeTab === 'logos'">
-      <div class="logo-panel__search">
-        <textarea
-          ref="textareaRef"
-          v-model="brandInput"
-          class="logo-panel__input"
-          placeholder="Brand names (comma or newline)&#10;e.g., Nike, Adidas, Puma"
-          rows="4"
-          :disabled="searching"
-          @keydown.meta.enter="searchBrands"
-          @keydown.ctrl.enter="searchBrands"
-          @input="autoResize"
-        />
-        <AppButton
-          size="sm"
-          @click="searchBrands"
-          :disabled="!brandInput.trim() || searching"
-          :loading="searching"
-        >
-          <AppIcon name="search" :size="14" />
-          Search
-        </AppButton>
-      </div>
-
-      <div class="logo-panel__options">
-        <span class="logo-panel__source">
-          {{ brandfetchAvailable ? 'Powered by Brandfetch' : 'Using favicons' }}
-        </span>
-        <div class="logo-panel__bg-toggle">
-          <button
-            :class="['logo-panel__bg-btn', { 'logo-panel__bg-btn--active': logoBgColor === 'white' }]"
-            @click="logoBgColor = 'white'"
-            title="White background"
-          >
-            <span class="logo-panel__bg-swatch logo-panel__bg-swatch--white"></span>
-          </button>
-          <button
-            :class="['logo-panel__bg-btn', { 'logo-panel__bg-btn--active': logoBgColor === 'transparent' }]"
-            @click="logoBgColor = 'transparent'"
-            title="Transparent background"
-          >
-            <span class="logo-panel__bg-swatch logo-panel__bg-swatch--transparent"></span>
-          </button>
-        </div>
-      </div>
-
-      <div class="logo-panel__results">
-        <div v-if="searchResults.length > 0" class="logo-panel__selection-bar">
-          <span class="logo-panel__count">
-            {{ selectedCount }} of {{ searchResults.length }} selected
-          </span>
-          <div class="logo-panel__selection-actions">
-            <button @click="selectAll">All</button>
-            <button @click="deselectAll">None</button>
-            <button @click="clearAll">Clear</button>
-          </div>
-        </div>
-
-        <div class="logo-panel__grid">
-          <div
-            v-for="result in searchResults"
-            :key="result.name"
-            :class="[
-              'logo-panel__card',
-              { 'logo-panel__card--selected': result.selected },
-              { 'logo-panel__card--error': result.status === 'error' },
-              { 'logo-panel__card--loading': result.status === 'loading' }
-            ]"
-            @click="toggleSelect(result)"
-          >
-            <div class="logo-panel__checkbox" v-if="result.status === 'success'">
-              <AppIcon :name="result.selected ? 'check-square' : 'square'" :size="16" />
-            </div>
-
-            <button class="logo-panel__remove" @click.stop="removeBrand(result.name)">
-              <AppIcon name="x" :size="12" />
-            </button>
-
-            <div
-              :class="[
-                'logo-panel__preview',
-                { 'logo-panel__preview--transparent': logoBgColor === 'transparent' }
-              ]"
-            >
-              <AppSpinner v-if="result.status === 'loading' && !getLogoUrl(result)" size="sm" />
-              <img
-                v-else-if="getLogoUrl(result)"
-                :src="getLogoUrl(result)"
-                :alt="result.name"
-                @load="handleImageLoad(result)"
-                @error="handleImageError(result)"
-              />
-              <div v-if="result.status === 'error'" class="logo-panel__error">
-                <AppIcon name="alert-circle" :size="20" />
-              </div>
-            </div>
-
-            <div class="logo-panel__name">{{ result.name }}</div>
-          </div>
-        </div>
-
-        <div v-if="searchResults.length === 0" class="logo-panel__empty">
-          <AppIcon name="search" :size="32" />
-          <p>Search for brand names above</p>
-        </div>
-      </div>
-
-      <div class="logo-panel__footer">
-        <AppButton
-          :disabled="!canAdd"
-          :loading="saving"
-          @click="handleAddLogos"
-          class="logo-panel__add-btn"
-        >
-          <AppIcon name="plus" :size="16" />
-          Add {{ selectedCount > 0 ? selectedCount : '' }} Logo{{ selectedCount !== 1 ? 's' : '' }}
-        </AppButton>
-      </div>
-    </template>
 
     <!-- IMAGE SEARCH TAB -->
     <template v-if="activeTab === 'images'">
@@ -1030,50 +621,7 @@ async function handleAddImages() {
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-}
-
-.logo-panel__bg-toggle {
-  display: flex;
-  gap: 4px;
-}
-
-.logo-panel__bg-btn {
-  background: none;
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 2px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.logo-panel__bg-btn:hover {
-  border-color: var(--color-text-muted);
-}
-
-.logo-panel__bg-btn--active {
-  border-color: var(--color-primary);
-}
-
-.logo-panel__bg-swatch {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 2px;
-}
-
-.logo-panel__bg-swatch--white {
-  background: #fff;
-  border: 1px solid var(--color-border);
-}
-
-.logo-panel__bg-swatch--transparent {
-  background:
-    linear-gradient(45deg, #ccc 25%, transparent 25%),
-    linear-gradient(-45deg, #ccc 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #ccc 75%),
-    linear-gradient(-45deg, transparent 75%, #ccc 75%);
-  background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  padding: 0 var(--space-md);
 }
 
 .logo-panel__results {
@@ -1191,16 +739,6 @@ async function handleAddImages() {
   background: #fff;
   border-radius: var(--radius-sm);
   overflow: hidden;
-}
-
-.logo-panel__preview--transparent {
-  background:
-    linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
-    linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
-    linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
-  background-size: 12px 12px;
-  background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
 }
 
 .logo-panel__preview img {
