@@ -84,15 +84,14 @@ const formattedType = computed(() => {
   <AppCard
     variant="bordered"
     padding="none"
-    :clickable="!selectable"
+    clickable
     :class="['asset-card', { 'asset-card--selected': selected }]"
-    @click="emit('click')"
+    @click="selectable ? emit('select') : emit('click')"
   >
     <!-- Selection checkbox (visible on hover, or always when any item is selected) -->
     <div
       v-if="selectable"
       :class="['asset-card__select', { 'asset-card__select--visible': showCheckbox || selected }]"
-      @click.stop="emit('select')"
     >
       <div :class="['asset-card__checkbox', { 'asset-card__checkbox--checked': selected }]">
         <AppIcon v-if="selected" name="check" :size="14" />

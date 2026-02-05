@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brand Logo Finder</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Instrument+Serif&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      background: #faf9f7;
+      font-family: 'DM Sans', sans-serif;
+      color: #2c2825;
+    }
+
+    header {
+      border-bottom: 1px solid #e2e0dc;
+      padding: 28px 32px 24px;
+      background: #fff;
+    }
+
+    header .inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header .title-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+
+    header h1 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 32px;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+    }
+
+    header .tag {
+      font-size: 12px;
+      color: #b0a99f;
+      font-family: 'DM Mono', monospace;
+    }
+
+    header p {
+      color: #8a8279;
+      font-size: 14px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    textarea {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 14px;
+      border: 1px solid #d4d0cb;
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      resize: vertical;
+      background: #fff;
+      line-height: 1.6;
+      color: #2c2825;
+    }
+
+    textarea:focus { border-color: #2c2825; }
+
+    .btn-col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: #2c2825;
+      color: #faf9f7;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: background 0.15s;
+    }
+
+    .btn-primary:hover { background: #1a1816; }
+
+    .btn-clear {
+      background: none;
+      color: #b0a99f;
+      border: 1px solid #e2e0dc;
+      border-radius: 10px;
+      padding: 10px 24px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.15s;
+    }
+
+    .btn-clear:hover {
+      border-color: #c4402a;
+      color: #c4402a;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-top: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e2e0dc;
+    }
+
+    .stats-text {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: #8a8279;
+    }
+
+    .spacer { flex: 1; }
+
+    .filter-btn {
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.15s;
+      text-transform: capitalize;
+    }
+
+    .filter-btn.active {
+      background: #2c2825;
+      color: #faf9f7;
+      border: 1px solid #2c2825;
+      font-weight: 600;
+    }
+
+    .filter-btn.inactive {
+      background: transparent;
+      color: #8a8279;
+      border: 1px solid #e2e0dc;
+      font-weight: 400;
+    }
+
+    .filter-btn.inactive:hover {
+      border-color: #8a8279;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e2e0dc;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      transition: box-shadow 0.2s;
+      min-height: 160px;
+    }
+
+    .card:hover {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .card .remove-btn {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #b0a99f;
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .card .remove-btn:hover { color: #e74c3c; }
+
+    .logo-box {
+      width: 72px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: #f5f3f0;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .logo-box.loaded { background: transparent; }
+
+    .logo-box img {
+      max-width: 64px;
+      max-height: 64px;
+      object-fit: contain;
+    }
+
+    .logo-box .error-icon {
+      color: #c4402a;
+      font-size: 20px;
+    }
+
+    .logo-box .loading {
+      color: #b0a99f;
+      font-size: 11px;
+    }
+
+    .brand-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #2c2825;
+      text-align: center;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .domain-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #8a8279;
+      font-size: 10.5px;
+      padding: 2px 6px;
+      font-family: 'DM Mono', monospace;
+      border-radius: 4px;
+    }
+
+    .domain-btn:hover { background: #f5f3f0; }
+
+    .edit-row, .url-row {
+      display: flex;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .edit-row input, .url-row input {
+      flex: 1;
+      padding: 4px 8px;
+      font-size: 11px;
+      border: 1px solid #d4d0cb;
+      border-radius: 6px;
+      outline: none;
+      min-width: 0;
+    }
+
+    .edit-row input { font-family: 'DM Mono', monospace; }
+    .url-row input { font-family: 'DM Sans', sans-serif; font-size: 10.5px; }
+
+    .edit-row button {
+      background: #2c2825;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .url-row button {
+      background: #c4402a;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 10.5px;
+      cursor: pointer;
+    }
+
+    .open-link {
+      font-size: 10px;
+      color: #8a8279;
+      text-decoration: none;
+      font-family: 'DM Sans', sans-serif;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .open-link:hover {
+      background: #f5f3f0;
+      color: #2c2825;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 64px 24px;
+      color: #b0a99f;
+    }
+
+    .empty-state .icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.4;
+    }
+
+    .empty-state .title {
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .empty-state .sub {
+      font-size: 13px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="inner">
+    <div class="title-row">
+      <h1>Brand Logo Finder</h1>
+      <span class="tag">Google · DuckDuckGo · Clearbit</span>
+    </div>
+    <p>Paste brand names below — one per line, or comma-separated. Logos auto-fetch with fallback across 3 providers.</p>
+  </div>
+</header>
+
+<div class="container">
+  <div class="input-row">
+    <textarea id="brandInput" rows="4" placeholder="Nike&#10;Adidas&#10;Zalando&#10;Decathlon&#10;..."></textarea>
+    <div class="btn-col">
+      <button class="btn-primary" id="fetchBtn">Fetch logos</button>
+      <button class="btn-clear" id="clearBtn" style="display:none;">Clear all</button>
+    </div>
+  </div>
+
+  <div class="stats-bar" id="statsBar" style="display:none;">
+    <div class="stats-text" id="statsText"></div>
+    <div class="spacer"></div>
+    <button class="filter-btn active" data-filter="all" id="filterAll">All</button>
+    <button class="filter-btn inactive" data-filter="found" id="filterFound">Mapped</button>
+    <button class="filter-btn inactive" data-filter="missing" id="filterMissing">Missing</button>
+  </div>
+
+  <div class="grid" id="logoGrid"></div>
+
+  <div class="empty-state" id="emptyState">
+    <div class="icon">◎</div>
+    <div class="title">Paste your brand names above to get started</div>
+    <div class="sub">Supports comma-separated, semicolons, or one per line</div>
+  </div>
+</div>
+
+<script>
+const LOGO_PROVIDERS = [
+  (d) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
+  (d) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
+  (d) => `https://logo.clearbit.com/${d}`,
+];
+
+const DOMAIN_MAP = {
+  "nike store": "nike.com",
+  "nike factory outlet": "nike.com",
+  "adidas store": "adidas.com",
+  "adidas factory outlet": "adidas.com",
+  "asics store": "asics.com",
+  "asics factory outlet": "asics.com",
+  "new balance store": "newbalance.com",
+  "puma store": "puma.com",
+  "reebok store": "reebok.com",
+  "skechers store": "skechers.com",
+  "jack wolfskin store": "jack-wolfskin.com",
+  "kappa store": "kappa.com",
+  "under armour": "underarmour.com",
+  "lululemon": "lululemon.com",
+  "sweaty betty": "sweatybetty.com",
+  "& other stories": "stories.com",
+  "foot locker": "footlocker.com",
+  "jd sports": "jdsports.com",
+  "sports direct": "sportsdirect.com",
+  "sport 2000": "sport2000.fr",
+  "sport scheck": "sportscheck.com",
+  "intersport": "intersport.com",
+  "decathlon": "decathlon.com",
+  "go sport": "go-sport.com",
+  "cisalfa": "cisalfasport.it",
+  "courir": "courir.com",
+  "snipes": "snipes.com",
+  "footasylum": "footasylum.com",
+  "size?": "size.co.uk",
+  "sidestep": "sidestep-shoes.com",
+  "aw lab": "awlab.com",
+  "athletes foot": "theathletesfoot.com",
+  "schuh": "schuh.co.uk",
+  "office-offspring": "office.co.uk",
+  "deichmann": "deichmann.com",
+  "sarenza": "sarenza.com",
+  "goertz": "goertz.de",
+  "shoe zone": "shoezone.com",
+  "reno": "reno.de",
+  "zalando": "zalando.com",
+  "amazon": "amazon.com",
+  "asos": "asos.com",
+  "about you": "aboutyou.com",
+  "otto": "otto.de",
+  "ebay": "ebay.com",
+  "la redoute": "laredoute.com",
+  "very": "very.co.uk",
+  "spartoo": "spartoo.com",
+  "yoox": "yoox.com",
+  "shein": "shein.com",
+  "ali express": "aliexpress.com",
+  "veepee": "veepee.com",
+  "bestsecret": "bestsecret.com",
+  "privalia": "privalia.com",
+  "showroomprive.com": "showroomprive.com",
+  "c-discount": "cdiscount.com",
+  "john lewis": "johnlewis.com",
+  "house of fraser": "houseoffraser.co.uk",
+  "debenhams": "debenhams.com",
+  "galeries lafayette": "galerieslafayette.com",
+  "printemps": "printemps.com",
+  "el corte ingles": "elcorteingles.es",
+  "galeria karstadt kaufhof": "galeria.de",
+  "rinascente": "rinascente.it",
+  "breuninger": "breuninger.com",
+  "engelhorn": "engelhorn.de",
+  "t.k. maxx": "tkmaxx.com",
+  "littlewoods": "littlewoods.com",
+  "jd williams": "jdwilliams.co.uk",
+  "woolworths": "woolworths.co.uk",
+  "cotswold outdoor": "cotswoldoutdoor.com",
+  "snow and rock": "snowandrock.com",
+  "go outdoors": "gooutdoors.co.uk",
+  "globetrotter": "globetrotter.de",
+  "millets": "millets.co.uk",
+  "blacks": "blacks.co.uk",
+  "up and running": "upandrunning.co.uk",
+  "sweatshop": "sweatshop.com",
+  "ekosport": "ekosport.fr",
+  "vieux campeur": "auvieuxcampeur.fr",
+  "endurance shop": "endurance-shop.com",
+  "dw sports fitness": "dwsports.com",
+  "mctrek": "mctrek.de",
+  "planet-sports": "planet-sports.com",
+  "la halle": "lahalle.com",
+  "bader versand": "bader.de",
+  "baur": "baur.de",
+  "daxon": "daxon.fr",
+  "original shoe co.": "originalshoeco.com",
+  "saldi privati": "saldiprivati.com",
+  "pittarosso": "pittarosso.com",
+  "maxi sport": "maxisport.com",
+  "sportler": "sportler.com",
+  "game7athletics": "game7athletics.com",
+  "sprinter": "sprinter.es",
+  "siemes": "siemes.de",
+  "abc schuhe": "abc-schuhe.de",
+  "goetz": "goetz-schuhe.de",
+  "voswinkel": "voswinkel.de",
+  "marathon": "marathon.fr",
+  "lex-laufexperten": "lex-laufexperten.de",
+  "mode plus sport": "modeplussport.com",
+  "sport and loisirs e.leclerc": "leclerc.com",
+  "team sport": "teamsport.com",
+  "sportland": "sportland.de",
+  "globo": "globo.it",
+  "mega sport": "megasport.it",
+  "non solo sport": "nonsolosport.it",
+  "open sport": "opensport.it",
+  "universo sport": "universosport.it",
+  "scarpamondo": "scarpamondo.it",
+  "pittarello diffusion": "pittarello.com",
+};
+
+function guessDomain(name) {
+  const lower = name.toLowerCase().trim();
+  if (DOMAIN_MAP[lower]) return DOMAIN_MAP[lower];
+  const cleaned = lower
+    .replace(/\s*(store|factory outlet|outlet)\s*/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+  return cleaned ? `${cleaned}.com` : null;
+}
+
+let brands = [];
+let currentFilter = "all";
+
+const input = document.getElementById("brandInput");
+const fetchBtn = document.getElementById("fetchBtn");
+const clearBtn = document.getElementById("clearBtn");
+const statsBar = document.getElementById("statsBar");
+const statsText = document.getElementById("statsText");
+const grid = document.getElementById("logoGrid");
+const emptyState = document.getElementById("emptyState");
+const filterBtns = document.querySelectorAll(".filter-btn");
+
+fetchBtn.addEventListener("click", () => {
+  const text = input.value.trim();
+  if (!text) return;
+  const lines = text.split(/[\n,;]+/).map(l => l.trim()).filter(l => l.length > 0);
+  lines.forEach((name, i) => {
+    brands.push({
+      id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      domain: guessDomain(name),
+      customLogoUrl: null,
+    });
+  });
+  input.value = "";
+  render();
+});
+
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.metaKey) {
+    e.preventDefault();
+    fetchBtn.click();
+  }
+});
+
+clearBtn.addEventListener("click", () => {
+  brands = [];
+  currentFilter = "all";
+  render();
+});
+
+filterBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentFilter = btn.dataset.filter;
+    render();
+  });
+});
+
+function getStats() {
+  return {
+    total: brands.length,
+    mapped: brands.filter(b => b.domain || b.customLogoUrl).length,
+    missing: brands.filter(b => !b.domain && !b.customLogoUrl).length,
+  };
+}
+
+function getFiltered() {
+  if (currentFilter === "found") return brands.filter(b => b.domain || b.customLogoUrl);
+  if (currentFilter === "missing") return brands.filter(b => !b.domain && !b.customLogoUrl);
+  return brands;
+}
+
+function createCard(brand) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.dataset.id = brand.id;
+
+  let providerIdx = 0;
+
+  // Remove button
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "remove-btn";
+  removeBtn.textContent = "×";
+  removeBtn.title = "Remove brand";
+  removeBtn.addEventListener("click", () => {
+    brands = brands.filter(b => b.id !== brand.id);
+    render();
+  });
+  card.appendChild(removeBtn);
+
+  // Logo box
+  const logoBox = document.createElement("div");
+  logoBox.className = "logo-box";
+
+  function tryLoadLogo() {
+    logoBox.innerHTML = "";
+    logoBox.classList.remove("loaded");
+
+    const domain = brand.domain;
+    const url = brand.customLogoUrl
+      || (domain && providerIdx < LOGO_PROVIDERS.length ? LOGO_PROVIDERS[providerIdx](domain) : null);
+
+    if (!url) {
+      logoBox.innerHTML = '<div class="error-icon">?</div>';
+      showUrlInput();
+      return;
+    }
+
+    const loading = document.createElement("div");
+    loading.className = "loading";
+    loading.textContent = "...";
+    logoBox.appendChild(loading);
+
+    const img = document.createElement("img");
+    img.alt = brand.name;
+    img.style.display = "none";
+
+    img.onload = () => {
+      if (img.naturalWidth <= 1 && img.naturalHeight <= 1) {
+        img.onerror();
+        return;
+      }
+      loading.remove();
+      img.style.display = "block";
+      logoBox.classList.add("loaded");
+
+      // Add open link
+      let existingLink = card.querySelector(".open-link");
+      if (existingLink) existingLink.remove();
+      const link = document.createElement("a");
+      link.className = "open-link";
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "↓ open image";
+      card.appendChild(link);
+    };
+
+    img.onerror = () => {
+      if (brand.customLogoUrl) {
+        logoBox.innerHTML = '<div class="error-icon">?</div>';
+        showUrlInput();
+        return;
+      }
+      providerIdx++;
+      if (providerIdx < LOGO_PROVIDERS.length) {
+        tryLoadLogo();
+      } else {
+        logoBox.innerHTML = '<div class="error-icon">?</div>';
+        showUrlInput();
+      }
+    };
+
+    img.src = url;
+    logoBox.appendChild(img);
+  }
+
+  card.appendChild(logoBox);
+
+  // Brand name
+  const nameEl = document.createElement("div");
+  nameEl.className = "brand-name";
+  nameEl.textContent = brand.name;
+  card.appendChild(nameEl);
+
+  // Domain button / edit
+  const domainBtn = document.createElement("button");
+  domainBtn.className = "domain-btn";
+  domainBtn.textContent = brand.domain || "set domain";
+  domainBtn.addEventListener("click", () => {
+    domainBtn.style.display = "none";
+    const editRow = document.createElement("div");
+    editRow.className = "edit-row";
+    const editInput = document.createElement("input");
+    editInput.value = brand.domain || "";
+    editInput.placeholder = "domain.com";
+    const okBtn = document.createElement("button");
+    okBtn.textContent = "OK";
+
+    const applyEdit = () => {
+      if (editInput.value.trim()) {
+        brand.domain = editInput.value.trim();
+        brand.customLogoUrl = null;
+        domainBtn.textContent = brand.domain;
+        providerIdx = 0;
+        tryLoadLogo();
+        // Remove url input if present
+        const urlRow = card.querySelector(".url-row");
+        if (urlRow) urlRow.remove();
+      }
+      editRow.remove();
+      domainBtn.style.display = "";
+    };
+
+    editInput.addEventListener("keydown", (e) => { if (e.key === "Enter") applyEdit(); });
+    okBtn.addEventListener("click", applyEdit);
+    editRow.appendChild(editInput);
+    editRow.appendChild(okBtn);
+    card.insertBefore(editRow, domainBtn.nextSibling);
+    editInput.focus();
+  });
+  card.appendChild(domainBtn);
+
+  // URL paste input (for failed logos)
+  function showUrlInput() {
+    if (card.querySelector(".url-row")) return;
+    const urlRow = document.createElement("div");
+    urlRow.className = "url-row";
+    const urlInput = document.createElement("input");
+    urlInput.placeholder = "Paste logo URL...";
+    const addBtn = document.createElement("button");
+    addBtn.textContent = "+";
+
+    const applyUrl = () => {
+      if (urlInput.value.trim()) {
+        brand.customLogoUrl = urlInput.value.trim();
+        providerIdx = 0;
+        urlRow.remove();
+        tryLoadLogo();
+      }
+    };
+
+    urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") applyUrl(); });
+    addBtn.addEventListener("click", applyUrl);
+    urlRow.appendChild(urlInput);
+    urlRow.appendChild(addBtn);
+    card.appendChild(urlRow);
+  }
+
+  tryLoadLogo();
+  return card;
+}
+
+function render() {
+  const stats = getStats();
+  const filtered = getFiltered();
+
+  // Toggle visibility
+  clearBtn.style.display = brands.length > 0 ? "" : "none";
+  statsBar.style.display = brands.length > 0 ? "" : "none";
+  emptyState.style.display = brands.length === 0 ? "" : "none";
+
+  // Stats text
+  statsText.textContent = `${stats.total} brands · ${stats.mapped} mapped · ${stats.missing} need domain`;
+
+  // Filter buttons
+  filterBtns.forEach(btn => {
+    const f = btn.dataset.filter;
+    const isActive = f === currentFilter;
+    btn.className = `filter-btn ${isActive ? "active" : "inactive"}`;
+    if (f === "all") btn.textContent = `All (${stats.total})`;
+    else if (f === "found") btn.textContent = `Mapped (${stats.mapped})`;
+    else btn.textContent = `Missing (${stats.missing})`;
+  });
+
+  // Grid
+  grid.innerHTML = "";
+  filtered.forEach(brand => {
+    grid.appendChild(createCard(brand));
+  });
+}
+
+render();
+</script>
+</body>
+</html>

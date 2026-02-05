@@ -334,7 +334,7 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
       <div class="assets-view__main-wrapper">
         <!-- Main content -->
         <div class="assets-view__main">
-        <!-- Toolbar with search, bulk actions and grid controls -->
+        <!-- Toolbar with search and grid controls -->
         <div class="assets-view__toolbar">
           <!-- Search bar -->
           <SearchBar
@@ -344,24 +344,7 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
             @update:model-value="handleSearch"
           />
 
-          <!-- Bulk actions -->
-          <div v-if="selectedAssets.length > 0" class="assets-view__bulk-actions">
-            <span>{{ selectedAssets.length }} selected</span>
-            <button @click="selectedAssets = []">Clear</button>
-            <button @click="handleBulkDownload">
-              <AppIcon name="download" :size="14" />
-              Download
-            </button>
-            <button @click="showBulkMoveModal = true">
-              <AppIcon name="move" :size="14" />
-              Move
-            </button>
-            <button class="danger" @click="showBulkDeleteConfirm = true">
-              <AppIcon name="trash" :size="14" />
-              Delete
-            </button>
-          </div>
-          <div v-else class="assets-view__spacer"></div>
+          <div class="assets-view__spacer"></div>
 
           <!-- Grid size slider -->
           <div class="assets-view__grid-controls">
@@ -411,6 +394,26 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
         />
       </div>
     </main>
+
+    <!-- Floating bulk actions toolbar -->
+    <Transition name="slide-up">
+      <div v-if="selectedAssets.length > 0" class="assets-view__bulk-toolbar">
+        <span class="assets-view__bulk-count">{{ selectedAssets.length }} selected</span>
+        <button @click="selectedAssets = []">Clear</button>
+        <button @click="handleBulkDownload">
+          <AppIcon name="download" :size="14" />
+          Download
+        </button>
+        <button @click="showBulkMoveModal = true">
+          <AppIcon name="move" :size="14" />
+          Move
+        </button>
+        <button class="danger" @click="showBulkDeleteConfirm = true">
+          <AppIcon name="trash" :size="14" />
+          Delete
+        </button>
+      </div>
+    </Transition>
 
     <!-- Modals -->
     <UploadModal
@@ -596,22 +599,32 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
   background: var(--color-primary-hover);
 }
 
-.assets-view__bulk-actions {
+/* Floating bulk toolbar */
+.assets-view__bulk-toolbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
 }
 
-.assets-view__bulk-actions span {
+.assets-view__bulk-count {
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  padding-right: var(--space-sm);
+  border-right: 1px solid var(--color-border);
 }
 
-.assets-view__bulk-actions button {
+.assets-view__bulk-toolbar button {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
@@ -625,18 +638,30 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
   transition: all var(--transition-fast);
 }
 
-.assets-view__bulk-actions button:hover {
+.assets-view__bulk-toolbar button:hover {
   background: var(--color-border);
 }
 
-.assets-view__bulk-actions button.danger {
+.assets-view__bulk-toolbar button.danger {
   background: var(--color-error);
   color: white;
   border-color: var(--color-error);
 }
 
-.assets-view__bulk-actions button.danger:hover {
+.assets-view__bulk-toolbar button.danger:hover {
   opacity: 0.9;
+}
+
+/* Slide up animation */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.2s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
 }
 
 .assets-view__loading {

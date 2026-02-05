@@ -179,11 +179,6 @@ export function validateBulkDeleteInput(data: unknown): { valid: boolean; errors
         return { valid: false, errors };
     }
 
-    if (input.ids.length > 100) {
-        errors.push('Maximum 100 items per bulk delete');
-        return { valid: false, errors };
-    }
-
     return {
         valid: true,
         errors: [],

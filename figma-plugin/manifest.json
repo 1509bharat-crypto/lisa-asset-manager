@@ -6,6 +6,6 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["https://*.railway.app", "https://*.up.railway.app"]
+    "allowedDomains": ["https://lisa-asset-manager-production.up.railway.app"]
   }
 }

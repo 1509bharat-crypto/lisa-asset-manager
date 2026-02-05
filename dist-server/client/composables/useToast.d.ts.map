@@ -1,0 +1,1 @@
+{"version":3,"file":"useToast.d.ts","sourceRoot":"","sources":["../../../src/client/composables/useToast.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,KAAK,EAAE,MAAM,UAAU,CAAA;AAMrC,wBAAgB,QAAQ;;;;;;;;;;;;oBAEX,MAAM,SACT,KAAK,CAAC,MAAM,CAAC,wBAElB,MAAM;uBAeiB,MAAM,aAAa,MAAM;qBAG3B,MAAM,aAAa,MAAM;uBAGvB,MAAM,aAAa,MAAM;oBAG5B,MAAM,aAAa,MAAM;iBAG5B,MAAM;;EAqB3B"}
