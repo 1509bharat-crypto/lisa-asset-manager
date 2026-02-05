@@ -47,6 +47,7 @@ const searchResults = ref<BrandResult[]>([])
 const saving = ref(false)
 const searching = ref(false)
 const brandfetchAvailable = ref(true)
+const logoBgColor = ref<'white' | 'transparent'>('white')
 
 // === ICON GENERATOR STATE ===
 interface GeneratedIcon {
@@ -449,8 +450,26 @@ async function handleAddIcons() {
         </AppButton>
       </div>
 
-      <div class="logo-panel__source">
-        {{ brandfetchAvailable ? 'Powered by Brandfetch' : 'Using favicons' }}
+      <div class="logo-panel__options">
+        <span class="logo-panel__source">
+          {{ brandfetchAvailable ? 'Powered by Brandfetch' : 'Using favicons' }}
+        </span>
+        <div class="logo-panel__bg-toggle">
+          <button
+            :class="['logo-panel__bg-btn', { 'logo-panel__bg-btn--active': logoBgColor === 'white' }]"
+            @click="logoBgColor = 'white'"
+            title="White background"
+          >
+            <span class="logo-panel__bg-swatch logo-panel__bg-swatch--white"></span>
+          </button>
+          <button
+            :class="['logo-panel__bg-btn', { 'logo-panel__bg-btn--active': logoBgColor === 'transparent' }]"
+            @click="logoBgColor = 'transparent'"
+            title="Transparent background"
+          >
+            <span class="logo-panel__bg-swatch logo-panel__bg-swatch--transparent"></span>
+          </button>
+        </div>
       </div>
 
       <div class="logo-panel__results">
@@ -485,7 +504,12 @@ async function handleAddIcons() {
               <AppIcon name="x" :size="12" />
             </button>
 
-            <div class="logo-panel__preview">
+            <div
+              :class="[
+                'logo-panel__preview',
+                { 'logo-panel__preview--transparent': logoBgColor === 'transparent' }
+              ]"
+            >
               <AppSpinner v-if="result.status === 'loading' && !getLogoUrl(result)" size="sm" />
               <img
                 v-else-if="getLogoUrl(result)"
@@ -565,7 +589,6 @@ async function handleAddIcons() {
             :key="icon.id"
             :class="[
               'logo-panel__card',
-              'logo-panel__card--square',
               { 'logo-panel__card--selected': icon.selected },
               { 'logo-panel__card--error': icon.status === 'error' },
               { 'logo-panel__card--loading': icon.status === 'loading' }
@@ -580,7 +603,7 @@ async function handleAddIcons() {
               <AppIcon name="x" :size="12" />
             </button>
 
-            <div class="logo-panel__preview logo-panel__preview--square">
+            <div class="logo-panel__preview">
               <AppSpinner v-if="icon.status === 'loading'" size="sm" />
               <img
                 v-else-if="icon.dataUrl"
@@ -729,12 +752,62 @@ async function handleAddIcons() {
   opacity: 0.6;
 }
 
-.logo-panel__source {
+.logo-panel__options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 0 var(--space-md);
+}
+
+.logo-panel__source {
   font-size: 10px;
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.logo-panel__bg-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.logo-panel__bg-btn {
+  background: none;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.logo-panel__bg-btn:hover {
+  border-color: var(--color-text-muted);
+}
+
+.logo-panel__bg-btn--active {
+  border-color: var(--color-primary);
+}
+
+.logo-panel__bg-swatch {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+}
+
+.logo-panel__bg-swatch--white {
+  background: #fff;
+  border: 1px solid var(--color-border);
+}
+
+.logo-panel__bg-swatch--transparent {
+  background:
+    linear-gradient(45deg, #ccc 25%, transparent 25%),
+    linear-gradient(-45deg, #ccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ccc 75%),
+    linear-gradient(-45deg, transparent 75%, #ccc 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
 }
 
 .logo-panel__results {
@@ -845,7 +918,7 @@ async function handleAddIcons() {
 
 .logo-panel__preview {
   width: 100%;
-  aspect-ratio: 165 / 112;
+  aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -854,13 +927,19 @@ async function handleAddIcons() {
   overflow: hidden;
 }
 
-.logo-panel__preview--square {
-  aspect-ratio: 1;
+.logo-panel__preview--transparent {
+  background:
+    linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+    linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+    linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
 }
 
 .logo-panel__preview img {
-  max-width: 90%;
-  max-height: 90%;
+  width: 70%;
+  height: 70%;
   object-fit: contain;
 }
 
