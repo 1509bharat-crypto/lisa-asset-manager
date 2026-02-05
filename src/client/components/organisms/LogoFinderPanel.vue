@@ -918,7 +918,7 @@ async function handleAddIcons() {
 
 .logo-panel__preview {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 165 / 112;
   display: flex;
   align-items: center;
   justify-content: center;
