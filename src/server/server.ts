@@ -757,6 +757,53 @@ Respond ONLY with valid JSON in this exact format:
             console.error('Error analyzing image:', error);
             sendError(res, 'Failed to analyze image');
         }
+    },
+
+    // === AI ICON GENERATION ===
+    'POST /api/generate-icon': async (req, res) => {
+        if (!openai) {
+            return sendError(res, 'OpenAI API key not configured', 503);
+        }
+
+        try {
+            const body = await parseBody(req) as { subject?: string };
+            if (!body.subject?.trim()) {
+                return sendError(res, 'No subject provided', 400);
+            }
+
+            const subject = body.subject.trim();
+            console.log('Generating icon for:', subject);
+
+            // Build the prompt with the specific style
+            const prompt = `flat vector icon, soft rounded shapes, solid flat fills only, 4 distinct shades of grey, transparent background, no outlines, no strokes, no gradients, no shadows, no lighting effects, ${subject}, depth only from overlapping shapes, matte, minimal`;
+
+            const response = await openai.images.generate({
+                model: 'dall-e-3',
+                prompt: prompt,
+                n: 1,
+                size: '1024x1024',
+                quality: 'standard',
+                response_format: 'b64_json'
+            });
+
+            const imageData = response.data?.[0]?.b64_json;
+            if (!imageData) {
+                throw new Error('No image data returned');
+            }
+
+            const dataUrl = `data:image/png;base64,${imageData}`;
+
+            console.log('Icon generated successfully for:', subject);
+            sendJson(res, {
+                data: dataUrl,
+                subject: subject,
+                prompt: prompt
+            });
+        } catch (error: unknown) {
+            console.error('Error generating icon:', error);
+            const message = error instanceof Error ? error.message : 'Failed to generate icon';
+            sendError(res, message);
+        }
     }
 };
 
