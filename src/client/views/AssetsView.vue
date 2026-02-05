@@ -13,7 +13,7 @@ import {
   RenameFolderModal,
   MoveAssetModal,
   BulkMoveModal,
-  LogoScraperModal
+  LogoFinderPanel
 } from '../components/organisms'
 import { useProjects, useAssets, useFolders } from '../composables'
 import type { Asset, Folder } from '../types'
@@ -63,7 +63,7 @@ const showBulkDeleteConfirm = ref(false)
 const showBulkMoveModal = ref(false)
 const assetToMove = ref<Asset | null>(null)
 const searchQuery = ref('')
-const showLogoScraperModal = ref(false)
+const showLogoFinderPanel = ref(false)
 // Grid size: smaller value = more icons per row
 // Range designed for ~5 to ~8 icons per row depending on viewport
 const gridSize = ref(160) // Default - around 6-7 icons per row on typical screen
@@ -274,15 +274,18 @@ const handleMoveAsset = async (assetId: string, newProjectId: string, newFolderI
   assetToMove.value = null
 }
 
-const handleLogoSave = async (dataUrl: string, brandName: string) => {
-  // Convert data URL to File object
-  const response = await fetch(dataUrl)
-  const blob = await response.blob()
-  const file = new File([blob], `${brandName.toLowerCase().replace(/\s+/g, '-')}-logo.png`, { type: 'image/png' })
+const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) => {
+  // Convert each logo to File and upload
+  const files: File[] = []
+  for (const logo of logos) {
+    const response = await fetch(logo.dataUrl)
+    const blob = await response.blob()
+    const file = new File([blob], `${logo.brandName.toLowerCase().replace(/\s+/g, '-')}-logo.png`, { type: 'image/png' })
+    files.push(file)
+  }
 
-  // Upload as asset
-  await uploadAssets(projectId.value, [file], selectedFolderId.value)
-  showLogoScraperModal.value = false
+  // Upload all as assets
+  await uploadAssets(projectId.value, files, selectedFolderId.value)
 }
 </script>
 
@@ -298,7 +301,8 @@ const handleLogoSave = async (dataUrl: string, brandName: string) => {
         <AppButton
           variant="secondary"
           size="sm"
-          @click="showLogoScraperModal = true"
+          :class="{ 'assets-view__logo-btn--active': showLogoFinderPanel }"
+          @click="showLogoFinderPanel = !showLogoFinderPanel"
         >
           <AppIcon name="search" :size="16" />
           Find Logo
@@ -326,8 +330,10 @@ const handleLogoSave = async (dataUrl: string, brandName: string) => {
         @create="showCreateFolderModal = true"
       />
 
-      <!-- Main content -->
-      <div class="assets-view__main">
+      <!-- Main content area wrapper -->
+      <div class="assets-view__main-wrapper">
+        <!-- Main content -->
+        <div class="assets-view__main">
         <!-- Toolbar with search, bulk actions and grid controls -->
         <div class="assets-view__toolbar">
           <!-- Search bar -->
@@ -394,6 +400,14 @@ const handleLogoSave = async (dataUrl: string, brandName: string) => {
           @rename="(asset) => { assetToRename = asset }"
           @set-as-cover="handleSetAsCover"
           @move="(asset) => { assetToMove = asset }"
+        />
+        </div>
+
+        <!-- Logo Finder Panel (slide-over) -->
+        <LogoFinderPanel
+          v-if="showLogoFinderPanel"
+          @close="showLogoFinderPanel = false"
+          @add="handleLogosAdd"
         />
       </div>
     </main>
@@ -479,11 +493,6 @@ const handleLogoSave = async (dataUrl: string, brandName: string) => {
       @cancel="folderToDelete = null"
     />
 
-    <LogoScraperModal
-      v-if="showLogoScraperModal"
-      @close="showLogoScraperModal = false"
-      @save="handleLogoSave"
-    />
   </div>
 </template>
 
@@ -502,10 +511,17 @@ const handleLogoSave = async (dataUrl: string, brandName: string) => {
   min-height: 0; /* Important for flex children to scroll properly */
 }
 
+.assets-view__main-wrapper {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
 .assets-view__main {
   flex: 1;
   padding: 1.5rem;
   overflow-y: auto;
+  min-width: 0;
 }
 
 .assets-view__toolbar {
@@ -631,6 +647,12 @@ const handleLogoSave = async (dataUrl: string, brandName: string) => {
   gap: var(--space-md);
   padding: var(--space-xxl);
   color: var(--color-text-secondary);
+}
+
+.assets-view__logo-btn--active {
+  background: var(--color-primary) !important;
+  color: white !important;
+  border-color: var(--color-primary) !important;
 }
 
 @media (max-width: 768px) {

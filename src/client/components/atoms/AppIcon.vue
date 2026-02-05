@@ -18,11 +18,14 @@ import {
   Pencil,
   Database,
   AlertTriangle,
+  AlertCircle,
   Info,
   MoreVertical,
   Grid2x2,
   Grid3x3,
-  Move
+  Move,
+  Square,
+  CheckSquare
 } from 'lucide-vue-next'
 
 type IconName =
@@ -44,11 +47,14 @@ type IconName =
   | 'edit'
   | 'storage'
   | 'warning'
+  | 'alert-circle'
   | 'info'
   | 'more-vertical'
   | 'grid-small'
   | 'grid-large'
   | 'move'
+  | 'square'
+  | 'check-square'
 
 interface Props {
   name: IconName
@@ -78,11 +84,14 @@ const iconMap = {
   edit: Pencil,
   storage: Database,
   warning: AlertTriangle,
+  'alert-circle': AlertCircle,
   info: Info,
   'more-vertical': MoreVertical,
   'grid-small': Grid3x3,
   'grid-large': Grid2x2,
-  move: Move
+  move: Move,
+  square: Square,
+  'check-square': CheckSquare
 }
 </script>
 
