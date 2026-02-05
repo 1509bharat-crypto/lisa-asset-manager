@@ -698,15 +698,16 @@ Respond ONLY with valid JSON in this exact format:
 
             let finalBase64 = imageData;
 
-            // Desaturate the image to remove any color tint
+            // Resize to 512x512 and desaturate the image
             if (sharp) {
                 const inputBuffer = Buffer.from(imageData, 'base64');
-                const desaturatedBuffer = await sharp(inputBuffer)
-                    .grayscale() // Convert to grayscale (0 saturation)
-                    .png()
+                const processedBuffer = await sharp(inputBuffer)
+                    .resize(512, 512)
+                    .grayscale()
+                    .png({ compressionLevel: 9 })
                     .toBuffer();
-                finalBase64 = desaturatedBuffer.toString('base64');
-                console.log('Icon desaturated successfully');
+                finalBase64 = processedBuffer.toString('base64');
+                console.log('Icon resized and desaturated successfully');
             }
 
             const dataUrl = `data:image/png;base64,${finalBase64}`;
