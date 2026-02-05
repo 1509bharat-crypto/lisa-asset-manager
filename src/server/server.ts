@@ -685,19 +685,20 @@ Respond ONLY with valid JSON in this exact format:
                 `https://www.googleapis.com/customsearch/v1?${params}`
             );
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error('Google Search API error:', errorData);
-                throw new Error(`Google Search API error: ${response.status}`);
-            }
-
             interface GoogleImageItem {
                 title?: string;
                 link?: string;
                 image?: { thumbnailLink?: string; width?: number; height?: number };
                 displayLink?: string;
             }
-            const data = await response.json() as { items?: GoogleImageItem[] };
+
+            const data = await response.json() as { items?: GoogleImageItem[]; error?: { message?: string; code?: number } };
+
+            if (!response.ok) {
+                console.error('Google Search API error:', data);
+                const errorMsg = data.error?.message || `HTTP ${response.status}`;
+                return sendError(res, `Google API: ${errorMsg}`, response.status);
+            }
 
             // Transform results to a simpler format
             const images = (data.items || []).map((item) => ({
