@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { AppButton, AppIcon } from '../atoms'
+
+const router = useRouter()
 
 defineProps<{
   projectName?: string
@@ -49,6 +52,15 @@ const emit = defineEmits<{
         >
           <AppIcon name="plus" :size="16" />
           New Project
+        </AppButton>
+
+        <AppButton
+          v-if="!projectName"
+          variant="ghost"
+          size="sm"
+          @click="router.push('/analytics')"
+        >
+          <AppIcon name="chart" :size="16" />
         </AppButton>
       </slot>
     </div>

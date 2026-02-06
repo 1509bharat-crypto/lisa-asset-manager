@@ -26,7 +26,8 @@ import {
   Move,
   Square,
   CheckSquare,
-  RefreshCw
+  RefreshCw,
+  BarChart2
 } from 'lucide-vue-next'
 
 type IconName =
@@ -57,6 +58,7 @@ type IconName =
   | 'square'
   | 'check-square'
   | 'refresh'
+  | 'chart'
 
 interface Props {
   name: IconName
@@ -94,7 +96,8 @@ const iconMap = {
   move: Move,
   square: Square,
   'check-square': CheckSquare,
-  refresh: RefreshCw
+  refresh: RefreshCw,
+  chart: BarChart2
 }
 </script>
 

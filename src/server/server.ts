@@ -663,6 +663,87 @@ Respond ONLY with valid JSON in this exact format:
         }
     },
 
+    // === ANALYTICS ===
+    'POST /api/analytics/track': async (req, res) => {
+        try {
+            const body = await parseBody(req) as {
+                event?: string
+                properties?: Record<string, unknown>
+                session_id?: string
+                url?: string
+            }
+
+            if (!body.event) {
+                return sendError(res, 'Event name required', 400)
+            }
+
+            await pool.query(
+                `INSERT INTO analytics (event, properties, session_id, url, created_at)
+                 VALUES ($1, $2, $3, $4, NOW())`,
+                [
+                    body.event,
+                    JSON.stringify(body.properties || {}),
+                    body.session_id || null,
+                    body.url || null
+                ]
+            )
+
+            sendJson(res, { success: true })
+        } catch (error) {
+            console.error('Error tracking analytics:', error)
+            // Don't fail the request - analytics shouldn't break the app
+            sendJson(res, { success: false })
+        }
+    },
+
+    'GET /api/analytics/stats': async (_req, res) => {
+        try {
+            // Get event counts for the last 30 days
+            const eventCounts = await pool.query(`
+                SELECT event, COUNT(*) as count
+                FROM analytics
+                WHERE created_at > NOW() - INTERVAL '30 days'
+                GROUP BY event
+                ORDER BY count DESC
+            `)
+
+            // Get unique sessions (visitors) for the last 30 days
+            const uniqueSessions = await pool.query(`
+                SELECT COUNT(DISTINCT session_id) as count
+                FROM analytics
+                WHERE created_at > NOW() - INTERVAL '30 days'
+                  AND session_id IS NOT NULL
+            `)
+
+            // Get daily event counts for the last 14 days
+            const dailyEvents = await pool.query(`
+                SELECT DATE(created_at) as date, COUNT(*) as count
+                FROM analytics
+                WHERE created_at > NOW() - INTERVAL '14 days'
+                GROUP BY DATE(created_at)
+                ORDER BY date DESC
+            `)
+
+            // Get recent events (last 50)
+            const recentEvents = await pool.query(`
+                SELECT event, properties, session_id, url, created_at
+                FROM analytics
+                ORDER BY created_at DESC
+                LIMIT 50
+            `)
+
+            sendJson(res, {
+                event_counts: eventCounts.rows,
+                unique_visitors: parseInt(uniqueSessions.rows[0]?.count || '0'),
+                daily_events: dailyEvents.rows,
+                recent_events: recentEvents.rows
+            })
+        } catch (error) {
+            console.error('Error fetching analytics stats:', error)
+            sendError(res, 'Failed to fetch analytics stats')
+        }
+    },
+
     // === AI ICON GENERATION ===
     'POST /api/generate-icon': async (req, res) => {
         if (!openai) {

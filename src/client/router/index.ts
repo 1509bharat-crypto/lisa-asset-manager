@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { ProjectsView, AssetsView } from '../views'
+import { ProjectsView, AssetsView, AnalyticsView } from '../views'
 
 const routes = [
   {
@@ -11,6 +11,11 @@ const routes = [
     path: '/projects/:projectId',
     name: 'assets',
     component: AssetsView
+  },
+  {
+    path: '/analytics',
+    name: 'analytics',
+    component: AnalyticsView
   },
   {
     path: '/:pathMatch(.*)*',
