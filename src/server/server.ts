@@ -698,6 +698,12 @@ Respond ONLY with valid JSON in this exact format:
 
     'GET /api/analytics/stats': async (_req, res) => {
         try {
+            // Get actual database counts
+            const projectCount = await pool.query('SELECT COUNT(*) as count FROM projects')
+            const folderCount = await pool.query('SELECT COUNT(*) as count FROM folders')
+            const assetCount = await pool.query('SELECT COUNT(*) as count FROM assets')
+            const totalStorage = await pool.query('SELECT COALESCE(SUM(size), 0) as total FROM assets')
+
             // Get event counts for the last 30 days
             const eventCounts = await pool.query(`
                 SELECT event, COUNT(*) as count
@@ -733,6 +739,12 @@ Respond ONLY with valid JSON in this exact format:
             `)
 
             sendJson(res, {
+                // Database metrics
+                total_projects: parseInt(projectCount.rows[0]?.count || '0'),
+                total_folders: parseInt(folderCount.rows[0]?.count || '0'),
+                total_assets: parseInt(assetCount.rows[0]?.count || '0'),
+                total_storage: parseInt(totalStorage.rows[0]?.total || '0'),
+                // Event tracking
                 event_counts: eventCounts.rows,
                 unique_visitors: parseInt(uniqueSessions.rows[0]?.count || '0'),
                 daily_events: dailyEvents.rows,

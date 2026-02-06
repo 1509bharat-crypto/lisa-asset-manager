@@ -22,6 +22,12 @@ interface RecentEvent {
 }
 
 interface AnalyticsStats {
+  // Database metrics
+  total_projects: number
+  total_folders: number
+  total_assets: number
+  total_storage: number
+  // Event tracking
   event_counts: EventCount[]
   unique_visitors: number
   daily_events: DailyEvent[]
@@ -90,6 +96,14 @@ function formatTime(dateStr: string): string {
     hour: 'numeric',
     minute: '2-digit'
   })
+}
+
+function formatStorage(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
 async function fetchStats() {
@@ -177,15 +191,37 @@ onMounted(() => {
 
     <!-- Content -->
     <main v-else-if="stats" class="analytics-view__content">
-      <!-- Summary Cards -->
+      <!-- Database Metrics -->
+      <h2 class="analytics-view__section-title">Database Overview</h2>
+      <div class="analytics-view__cards">
+        <div class="stat-card stat-card--highlight">
+          <div class="stat-card__value">{{ stats.total_projects }}</div>
+          <div class="stat-card__label">Projects</div>
+        </div>
+        <div class="stat-card stat-card--highlight">
+          <div class="stat-card__value">{{ stats.total_folders }}</div>
+          <div class="stat-card__label">Folders</div>
+        </div>
+        <div class="stat-card stat-card--highlight">
+          <div class="stat-card__value">{{ stats.total_assets }}</div>
+          <div class="stat-card__label">Assets</div>
+        </div>
+        <div class="stat-card stat-card--highlight">
+          <div class="stat-card__value">{{ formatStorage(stats.total_storage) }}</div>
+          <div class="stat-card__label">Storage Used</div>
+        </div>
+      </div>
+
+      <!-- Activity Metrics -->
+      <h2 class="analytics-view__section-title">Activity (Last 30 Days)</h2>
       <div class="analytics-view__cards">
         <div class="stat-card">
           <div class="stat-card__value">{{ stats.unique_visitors }}</div>
-          <div class="stat-card__label">Unique Visitors (30d)</div>
+          <div class="stat-card__label">Unique Visitors</div>
         </div>
         <div class="stat-card">
           <div class="stat-card__value">{{ totalEvents }}</div>
-          <div class="stat-card__label">Total Events (30d)</div>
+          <div class="stat-card__label">Total Events</div>
         </div>
         <div class="stat-card">
           <div class="stat-card__value">{{ stats.event_counts.length }}</div>
@@ -384,10 +420,17 @@ onMounted(() => {
   padding: var(--space-xl);
 }
 
+.analytics-view__section-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--space-md) 0;
+  color: var(--color-text-secondary);
+}
+
 .analytics-view__cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-lg);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-md);
   margin-bottom: var(--space-xl);
 }
 
@@ -409,6 +452,15 @@ onMounted(() => {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-top: var(--space-xs);
+}
+
+.stat-card--highlight {
+  border-color: var(--color-primary);
+  border-width: 2px;
+}
+
+.stat-card--highlight .stat-card__value {
+  color: var(--color-text-primary);
 }
 
 .analytics-view__section {
