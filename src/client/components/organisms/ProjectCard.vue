@@ -101,7 +101,7 @@ const assetCount = computed(() => props.project.asset_count || 0)
     </div>
 
     <!-- Click outside to close menu -->
-    <div v-if="showMenu" class="project-card__backdrop" @click="closeMenu"></div>
+    <div v-if="showMenu" class="project-card__backdrop" @click.stop="closeMenu"></div>
   </div>
 </template>
 
