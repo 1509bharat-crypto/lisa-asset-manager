@@ -677,9 +677,8 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
 }
 
 .assets-view__logo-btn--active {
-  background: var(--color-primary) !important;
-  color: white !important;
-  border-color: var(--color-primary) !important;
+  background: var(--color-primary-light) !important;
+  color: var(--color-primary) !important;
 }
 
 @media (max-width: 768px) {
