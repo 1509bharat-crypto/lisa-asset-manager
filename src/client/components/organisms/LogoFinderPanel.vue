@@ -74,21 +74,22 @@ async function handleAdd() {
 
     <!-- Input Section -->
     <div class="logo-panel__input-section">
-      <input
+      <textarea
         v-model="iconSubject"
-        class="logo-panel__input"
+        class="logo-panel__textarea"
         placeholder="Enter icon subject..."
+        rows="4"
         :disabled="isGenerating"
-        @keydown.enter="generateIcon"
+        @keydown.ctrl.enter="generateIcon"
+        @keydown.meta.enter="generateIcon"
       />
       <AppButton
         @click="generateIcon"
         :disabled="!canGenerate"
-        :loading="isGenerating"
         class="logo-panel__generate-btn"
       >
-        <AppIcon v-if="!isGenerating" name="plus" :size="16" />
-        {{ isGenerating ? 'Generating...' : 'Generate' }}
+        <AppIcon name="plus" :size="16" />
+        Generate
       </AppButton>
       <p class="logo-panel__hint">e.g., shopping cart, bell, user profile</p>
     </div>
@@ -180,7 +181,7 @@ async function handleAdd() {
   border-bottom: 1px solid var(--color-border);
 }
 
-.logo-panel__input {
+.logo-panel__textarea {
   width: 100%;
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--color-border);
@@ -188,14 +189,16 @@ async function handleAdd() {
   background: var(--bg-primary);
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
+  font-family: inherit;
+  resize: none;
 }
 
-.logo-panel__input:focus {
+.logo-panel__textarea:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.logo-panel__input:disabled {
+.logo-panel__textarea:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
