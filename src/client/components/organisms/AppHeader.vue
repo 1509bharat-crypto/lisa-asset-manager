@@ -78,7 +78,7 @@ const emit = defineEmits<{
 .app-header__logo {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
   text-decoration: none;
   color: var(--color-text-primary);
   transition: opacity var(--transition-fast);
