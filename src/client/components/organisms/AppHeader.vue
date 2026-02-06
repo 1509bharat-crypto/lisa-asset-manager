@@ -16,19 +16,20 @@ const emit = defineEmits<{
 <template>
   <header class="app-header">
     <div class="app-header__left">
-      <AppButton
-        v-if="showBack"
-        variant="ghost"
-        size="sm"
-        @click="emit('back')"
-        class="app-header__back"
+      <!-- Logo/Home link - always visible, clickable when in project -->
+      <a
+        :class="['app-header__logo', { 'app-header__logo--clickable': projectName }]"
+        @click="projectName && emit('back')"
       >
-        <AppIcon name="back" :size="20" />
-      </AppButton>
+        <img src="/symbol.svg" alt="Logo" class="app-header__symbol" />
+        <span class="app-header__brand">Asset Library</span>
+      </a>
 
-      <h1 class="app-header__title">
-        {{ projectName || 'Asset Library' }}
-      </h1>
+      <!-- Breadcrumb separator and project name -->
+      <template v-if="projectName">
+        <AppIcon name="chevron-right" :size="16" class="app-header__separator" />
+        <h1 class="app-header__title">{{ projectName }}</h1>
+      </template>
     </div>
 
     <div class="app-header__right">
@@ -70,16 +71,44 @@ const emit = defineEmits<{
 .app-header__left {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: var(--space-sm);
   min-width: 200px;
 }
 
-.app-header__back {
-  margin-right: var(--space-sm);
+.app-header__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  color: var(--color-text-primary);
+  transition: opacity var(--transition-fast);
+}
+
+.app-header__logo--clickable {
+  cursor: pointer;
+}
+
+.app-header__logo--clickable:hover {
+  opacity: 0.7;
+}
+
+.app-header__symbol {
+  width: 28px;
+  height: 28px;
+}
+
+.app-header__brand {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.app-header__separator {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
 .app-header__title {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   white-space: nowrap;
@@ -103,6 +132,10 @@ const emit = defineEmits<{
   .app-header__left {
     order: 1;
     min-width: auto;
+  }
+
+  .app-header__brand {
+    display: none;
   }
 
   .app-header__right {

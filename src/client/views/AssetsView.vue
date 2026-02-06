@@ -296,7 +296,6 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
   <div class="assets-view">
     <AppHeader
       :project-name="project?.name"
-      :show-back="true"
       @back="handleBack"
       @upload="showUploadModal = true"
     >
