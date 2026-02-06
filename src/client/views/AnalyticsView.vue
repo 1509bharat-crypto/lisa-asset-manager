@@ -455,12 +455,12 @@ onMounted(() => {
 }
 
 .stat-card--highlight {
-  border-color: var(--color-primary);
-  border-width: 2px;
+  background: rgba(102, 126, 234, 0.1);
+  border-color: rgba(102, 126, 234, 0.3);
 }
 
 .stat-card--highlight .stat-card__value {
-  color: var(--color-text-primary);
+  color: var(--color-primary);
 }
 
 .analytics-view__section {
