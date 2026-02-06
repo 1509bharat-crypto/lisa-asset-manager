@@ -16,6 +16,7 @@ import {
   LogoFinderPanel
 } from '../components/organisms'
 import { useProjects, useAssets, useFolders } from '../composables'
+import { useAnalytics } from '../plugins/posthog'
 import type { Asset, Folder } from '../types'
 
 const route = useRoute()
@@ -23,6 +24,7 @@ const router = useRouter()
 
 const projectId = computed(() => route.params.projectId as string)
 
+const { events } = useAnalytics()
 const { projects, getProjectById, fetchProjects, setProjectCover } = useProjects()
 const {
   assets,
@@ -116,11 +118,13 @@ const handleSearch = (query: string) => {
 
 const handleUploadWithFolder = async (files: File[], folderId: string | null) => {
   await uploadAssets(projectId.value, files, folderId)
+  events.assetUploaded(files.length, projectId.value)
   showUploadModal.value = false
 }
 
 const handleCreateFolder = async (name: string) => {
   await createFolder(projectId.value, name)
+  events.folderCreated(projectId.value)
   showCreateFolderModal.value = false
 }
 
@@ -179,13 +183,16 @@ const handleAssetSelect = (id: string, selected: boolean) => {
 const handleDeleteAsset = async () => {
   if (assetToDelete.value) {
     await deleteAsset(assetToDelete.value)
+    events.assetDeleted(1)
     assetToDelete.value = null
   }
 }
 
 const handleBulkDelete = async () => {
   if (selectedAssets.value.length > 0) {
+    const count = selectedAssets.value.length
     await deleteAssets(selectedAssets.value)
+    events.bulkDelete(count)
     selectedAssets.value = []
     showBulkDeleteConfirm.value = false
   }
@@ -194,6 +201,8 @@ const handleBulkDelete = async () => {
 const handleBulkDownload = async () => {
   const selectedAssetObjects = allAssets.value.filter(a => selectedAssets.value.includes(a.id))
   if (selectedAssetObjects.length === 0) return
+
+  events.bulkDownload(selectedAssetObjects.length)
 
   // Single file - just download directly
   if (selectedAssetObjects.length === 1) {
@@ -244,6 +253,7 @@ const handleBulkMove = async (newProjectId: string, newFolderId: string | null) 
 }
 
 const handleDownload = (asset: Asset) => {
+  events.assetDownloaded(asset.id, asset.name)
   // Create a download link from the API endpoint
   const link = document.createElement('a')
   link.href = `/api/assets/${asset.id}/image`
@@ -281,6 +291,7 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
   // Convert each logo to File and upload
   const files: File[] = []
   for (const logo of logos) {
+    events.iconAdded(logo.brandName)
     const response = await fetch(logo.dataUrl)
     const blob = await response.blob()
     const file = new File([blob], `${logo.brandName.toLowerCase().replace(/\s+/g, '-')}-logo.png`, { type: 'image/png' })

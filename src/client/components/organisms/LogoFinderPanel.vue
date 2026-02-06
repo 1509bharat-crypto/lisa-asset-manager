@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { AppButton, AppSpinner, AppIcon } from '../atoms'
+import { useAnalytics } from '../../plugins/posthog'
+
+const { events } = useAnalytics()
 
 const emit = defineEmits<{
   close: []
@@ -36,6 +39,7 @@ async function generateIcon() {
     if (data.error) {
       error.value = data.error
     } else if (data.data) {
+      events.iconGenerated(subject)
       generatedIcon.value = { dataUrl: data.data, subject }
     }
   } catch (e) {

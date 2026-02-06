@@ -10,9 +10,11 @@ import {
   EditProjectModal
 } from '../components/organisms'
 import { useProjects } from '../composables'
+import { useAnalytics } from '../plugins/posthog'
 import type { Project } from '../types'
 
 const router = useRouter()
+const { events } = useAnalytics()
 const {
   projects,
   loading,
@@ -32,6 +34,10 @@ onMounted(() => {
 })
 
 const handleProjectClick = (id: string) => {
+  const project = projects.value.find(p => p.id === id)
+  if (project) {
+    events.projectOpened(id, project.name)
+  }
   router.push({ name: 'assets', params: { projectId: id } })
 }
 
@@ -42,12 +48,14 @@ const handleCreateProject = async (data: {
 }) => {
   const project = await createProject(data)
   if (project) {
+    events.projectCreated(data.name)
     showCreateModal.value = false
   }
 }
 
 const handleDeleteProject = async () => {
   if (projectToDelete.value) {
+    events.projectDeleted(projectToDelete.value)
     await deleteProject(projectToDelete.value)
     projectToDelete.value = null
   }
@@ -61,6 +69,7 @@ const handleEditProject = async (data: {
   if (projectToEdit.value) {
     const result = await updateProject(projectToEdit.value.id, data)
     if (result) {
+      events.projectRenamed(projectToEdit.value.id, data.name)
       projectToEdit.value = null
     }
   }
