@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { AppIcon } from '../atoms'
 import type { Project } from '../../types'
 
@@ -16,6 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const showMenu = ref(false)
+const menuWrapper = ref<HTMLElement | null>(null)
 
 const toggleMenu = (event: Event) => {
   event.stopPropagation()
@@ -25,6 +26,25 @@ const toggleMenu = (event: Event) => {
 const closeMenu = () => {
   showMenu.value = false
 }
+
+// Click outside handler
+const onDocumentClick = (event: MouseEvent) => {
+  if (menuWrapper.value && !menuWrapper.value.contains(event.target as Node)) {
+    closeMenu()
+  }
+}
+
+watch(showMenu, (open) => {
+  if (open) {
+    setTimeout(() => document.addEventListener('click', onDocumentClick), 0)
+  } else {
+    document.removeEventListener('click', onDocumentClick)
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick)
+})
 
 const handleRename = () => {
   emit('rename', props.project)
@@ -80,7 +100,7 @@ const assetCount = computed(() => props.project.asset_count || 0)
     </div>
 
     <!-- Three-dot menu -->
-    <div class="project-card__menu-wrapper">
+    <div ref="menuWrapper" class="project-card__menu-wrapper" @mouseleave="closeMenu">
       <button
         class="project-card__menu-btn"
         @click="toggleMenu"
@@ -100,8 +120,6 @@ const assetCount = computed(() => props.project.asset_count || 0)
       </div>
     </div>
 
-    <!-- Click outside to close menu -->
-    <div v-if="showMenu" class="project-card__backdrop" @click.stop="closeMenu"></div>
   </div>
 </template>
 
@@ -277,12 +295,6 @@ const assetCount = computed(() => props.project.asset_count || 0)
 
 .project-card__dropdown-item--danger:hover {
   background: rgba(239, 68, 68, 0.1);
-}
-
-.project-card__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
 }
 
 @keyframes fadeIn {
