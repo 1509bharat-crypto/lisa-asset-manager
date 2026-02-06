@@ -302,7 +302,7 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
     >
       <template #actions>
         <AppButton
-          variant="secondary"
+          variant="ghost"
           size="sm"
           :class="{ 'assets-view__logo-btn--active': showLogoFinderPanel }"
           @click="showLogoFinderPanel = !showLogoFinderPanel"
