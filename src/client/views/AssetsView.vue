@@ -17,6 +17,7 @@ import {
 } from '../components/organisms'
 import { useProjects, useAssets, useFolders } from '../composables'
 import { analytics } from '../services/analytics'
+import { api } from '../services/api'
 import type { Asset, Folder } from '../types'
 
 const route = useRoute()
@@ -240,7 +241,6 @@ const handleBulkDownload = async () => {
 }
 
 const handleBulkMove = async (newProjectId: string, newFolderId: string | null) => {
-  const { api } = await import('../services/api')
   // Move each selected asset
   for (const assetId of selectedAssets.value) {
     await api.moveAsset(assetId, newProjectId, newFolderId)
@@ -277,7 +277,6 @@ const handleSetAsCover = async (asset: Asset) => {
 }
 
 const handleMoveAsset = async (assetId: string, newProjectId: string, newFolderId: string | null) => {
-  const { api } = await import('../services/api')
   const result = await api.moveAsset(assetId, newProjectId, newFolderId)
   if (!result.error) {
     // Re-fetch assets to reflect the change
