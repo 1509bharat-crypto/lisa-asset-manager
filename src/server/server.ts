@@ -129,8 +129,37 @@ function getAllowedOrigin(requestOrigin: string | undefined): string {
     return ALLOWED_ORIGINS[0] || '';
 }
 
+// === Server-Sent Events (SSE) ===
+const sseClients = new Set<ServerResponse>();
+
+function broadcast(event: string, data?: Record<string, unknown>): void {
+    const message = `event: ${event}\ndata: ${JSON.stringify(data || {})}\n\n`;
+    for (const client of sseClients) {
+        try {
+            client.write(message);
+        } catch {
+            sseClients.delete(client);
+        }
+    }
+}
+
 // === API Routes ===
 const apiRoutes: Record<string, RouteHandler> = {
+    // SSE endpoint - clients subscribe to real-time updates
+    'GET /api/events': async (_req, res) => {
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+        });
+        res.write('event: connected\ndata: {}\n\n');
+        sseClients.add(res);
+        res.on('close', () => {
+            sseClients.delete(res);
+        });
+        // Keep connection alive - don't end response
+    },
+
     // Health check
     'GET /api/health': async (_req, res) => {
         try {
@@ -168,6 +197,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 'INSERT INTO projects (name, description, color) VALUES ($1, $2, $3) RETURNING *',
                 [name, description ?? null, color ?? '#667eea']
             );
+            broadcast('projects_changed');
             sendJson(res, rows[0], 201);
         } catch (error) {
             console.error('Error creating project:', error);
@@ -222,6 +252,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 values
             );
             if (rowCount === 0) return sendError(res, 'Project not found', 404);
+            broadcast('projects_changed');
             sendJson(res, rows[0]);
         } catch (error) {
             console.error('Error updating project:', error);
@@ -240,6 +271,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 [params.id]
             );
             if (rowCount === 0) return sendError(res, 'Project not found', 404);
+            broadcast('projects_changed');
             sendJson(res, { success: true });
         } catch (error) {
             console.error('Error deleting project:', error);
@@ -274,6 +306,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 'INSERT INTO folders (name, project_id, parent_id) VALUES ($1, $2, $3) RETURNING *',
                 [name, project_id, parent_id ?? null]
             );
+            broadcast('folders_changed', { project_id });
             sendJson(res, rows[0], 201);
         } catch (error) {
             console.error('Error creating folder:', error);
@@ -312,6 +345,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 values
             );
             if (rowCount === 0) return sendError(res, 'Folder not found', 404);
+            broadcast('folders_changed');
             sendJson(res, rows[0]);
         } catch (error) {
             console.error('Error updating folder:', error);
@@ -330,6 +364,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 [params.id]
             );
             if (rowCount === 0) return sendError(res, 'Folder not found', 404);
+            broadcast('folders_changed');
             sendJson(res, { success: true });
         } catch (error) {
             console.error('Error deleting folder:', error);
@@ -357,7 +392,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 sql += ' WHERE ' + conditions.join(' AND ');
             }
 
-            sql += ' ORDER BY upload_date DESC LIMIT 200';
+            sql += ' ORDER BY upload_date DESC';
 
             const { rows } = await pool.query(sql, values);
             sendJson(res, rows);
@@ -410,6 +445,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                  VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
                 [name, type, size, data, project_id, folder_id ?? null]
             );
+            broadcast('assets_changed', { project_id });
             sendJson(res, rows[0], 201);
         } catch (error) {
             console.error('Error creating asset:', error);
@@ -524,6 +560,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 values
             );
             if (rowCount === 0) return sendError(res, 'Asset not found', 404);
+            broadcast('assets_changed');
             sendJson(res, rows[0]);
         } catch (error) {
             console.error('Error updating asset:', error);
@@ -542,6 +579,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 [params.id]
             );
             if (rowCount === 0) return sendError(res, 'Asset not found', 404);
+            broadcast('assets_changed');
             sendJson(res, { success: true });
         } catch (error) {
             console.error('Error deleting asset:', error);
@@ -590,6 +628,7 @@ const apiRoutes: Record<string, RouteHandler> = {
                 `DELETE FROM assets WHERE id IN (${placeholders})`,
                 ids
             );
+            broadcast('assets_changed');
             sendJson(res, { deleted: rowCount });
         } catch (error) {
             console.error('Error bulk deleting assets:', error);

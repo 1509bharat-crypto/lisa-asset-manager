@@ -15,7 +15,7 @@ import {
   BulkMoveModal,
   LogoFinderPanel
 } from '../components/organisms'
-import { useProjects, useAssets, useFolders } from '../composables'
+import { useProjects, useAssets, useFolders, useRealtimeSync } from '../composables'
 import { analytics } from '../services/analytics'
 import { api } from '../services/api'
 import type { Asset, Folder } from '../types'
@@ -74,8 +74,9 @@ const GRID_SIZE_MAX = 220  // ~5 icons per row
 
 const loading = computed(() => assetsLoading.value || foldersLoading.value)
 
+const { on } = useRealtimeSync()
+
 onMounted(async () => {
-  // Use cached projects data if available (don't force refresh)
   await fetchProjects()
   if (!project.value) {
     router.push({ name: 'projects' })
@@ -84,6 +85,10 @@ onMounted(async () => {
   fetchFolders(projectId.value)
   fetchAssets(projectId.value)
 })
+
+// Re-fetch from database when server broadcasts changes
+on('assets_changed', () => fetchAssets(projectId.value))
+on('folders_changed', () => fetchFolders(projectId.value))
 
 // Update folder counts when all assets change
 watch(

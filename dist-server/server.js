@@ -113,8 +113,35 @@ function getAllowedOrigin(requestOrigin) {
     }
     return ALLOWED_ORIGINS[0] || '';
 }
+// === Server-Sent Events (SSE) ===
+const sseClients = new Set();
+function broadcast(event, data) {
+    const message = `event: ${event}\ndata: ${JSON.stringify(data || {})}\n\n`;
+    for (const client of sseClients) {
+        try {
+            client.write(message);
+        }
+        catch {
+            sseClients.delete(client);
+        }
+    }
+}
 // === API Routes ===
 const apiRoutes = {
+    // SSE endpoint - clients subscribe to real-time updates
+    'GET /api/events': async (_req, res) => {
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+        });
+        res.write('event: connected\ndata: {}\n\n');
+        sseClients.add(res);
+        res.on('close', () => {
+            sseClients.delete(res);
+        });
+        // Keep connection alive - don't end response
+    },
     // Health check
     'GET /api/health': async (_req, res) => {
         try {
@@ -145,6 +172,7 @@ const apiRoutes = {
             }
             const { name, description, color } = validation.data;
             const { rows } = await pool.query('INSERT INTO projects (name, description, color) VALUES ($1, $2, $3) RETURNING *', [name, description ?? null, color ?? '#667eea']);
+            broadcast('projects_changed');
             sendJson(res, rows[0], 201);
         }
         catch (error) {
@@ -192,6 +220,7 @@ const apiRoutes = {
             const { rows, rowCount } = await pool.query(`UPDATE projects SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`, values);
             if (rowCount === 0)
                 return sendError(res, 'Project not found', 404);
+            broadcast('projects_changed');
             sendJson(res, rows[0]);
         }
         catch (error) {
@@ -207,6 +236,7 @@ const apiRoutes = {
             const { rowCount } = await pool.query('DELETE FROM projects WHERE id = $1', [params.id]);
             if (rowCount === 0)
                 return sendError(res, 'Project not found', 404);
+            broadcast('projects_changed');
             sendJson(res, { success: true });
         }
         catch (error) {
@@ -234,6 +264,7 @@ const apiRoutes = {
             }
             const { name, project_id, parent_id } = validation.data;
             const { rows } = await pool.query('INSERT INTO folders (name, project_id, parent_id) VALUES ($1, $2, $3) RETURNING *', [name, project_id, parent_id ?? null]);
+            broadcast('folders_changed', { project_id });
             sendJson(res, rows[0], 201);
         }
         catch (error) {
@@ -265,6 +296,7 @@ const apiRoutes = {
             const { rows, rowCount } = await pool.query(`UPDATE folders SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`, values);
             if (rowCount === 0)
                 return sendError(res, 'Folder not found', 404);
+            broadcast('folders_changed');
             sendJson(res, rows[0]);
         }
         catch (error) {
@@ -280,6 +312,7 @@ const apiRoutes = {
             const { rowCount } = await pool.query('DELETE FROM folders WHERE id = $1', [params.id]);
             if (rowCount === 0)
                 return sendError(res, 'Folder not found', 404);
+            broadcast('folders_changed');
             sendJson(res, { success: true });
         }
         catch (error) {
@@ -304,7 +337,7 @@ const apiRoutes = {
             if (conditions.length > 0) {
                 sql += ' WHERE ' + conditions.join(' AND ');
             }
-            sql += ' ORDER BY upload_date DESC LIMIT 200';
+            sql += ' ORDER BY upload_date DESC';
             const { rows } = await pool.query(sql, values);
             sendJson(res, rows);
         }
@@ -347,6 +380,7 @@ const apiRoutes = {
             const { name, type, size, data, project_id, folder_id } = validation.data;
             const { rows } = await pool.query(`INSERT INTO assets (name, type, size, data, project_id, folder_id, upload_date)
                  VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`, [name, type, size, data, project_id, folder_id ?? null]);
+            broadcast('assets_changed', { project_id });
             sendJson(res, rows[0], 201);
         }
         catch (error) {
@@ -444,6 +478,7 @@ const apiRoutes = {
             const { rows, rowCount } = await pool.query(`UPDATE assets SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`, values);
             if (rowCount === 0)
                 return sendError(res, 'Asset not found', 404);
+            broadcast('assets_changed');
             sendJson(res, rows[0]);
         }
         catch (error) {
@@ -459,6 +494,7 @@ const apiRoutes = {
             const { rowCount } = await pool.query('DELETE FROM assets WHERE id = $1', [params.id]);
             if (rowCount === 0)
                 return sendError(res, 'Asset not found', 404);
+            broadcast('assets_changed');
             sendJson(res, { success: true });
         }
         catch (error) {
@@ -497,142 +533,12 @@ const apiRoutes = {
             const { ids } = validation;
             const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
             const { rowCount } = await pool.query(`DELETE FROM assets WHERE id IN (${placeholders})`, ids);
+            broadcast('assets_changed');
             sendJson(res, { deleted: rowCount });
         }
         catch (error) {
             console.error('Error bulk deleting assets:', error);
             sendError(res, 'Failed to bulk delete assets');
-        }
-    },
-    // === LOGO PROCESSING ===
-    // Search for brand logos using Brandfetch API
-    'GET /api/logo/search': async (req, res, _params, query) => {
-        const BRANDFETCH_API_KEY = process.env.BRANDFETCH_API_KEY;
-        if (!BRANDFETCH_API_KEY) {
-            return sendError(res, 'Brandfetch API key not configured', 503);
-        }
-        const brandName = query.q;
-        if (!brandName) {
-            return sendError(res, 'No brand name provided', 400);
-        }
-        try {
-            console.log('Searching Brandfetch for:', brandName);
-            // Use Brandfetch Brand Search API
-            const searchResponse = await fetch(`https://api.brandfetch.io/v2/search/${encodeURIComponent(brandName)}`, {
-                headers: {
-                    'Authorization': `Bearer ${BRANDFETCH_API_KEY}`
-                }
-            });
-            if (!searchResponse.ok) {
-                throw new Error(`Brandfetch search failed: ${searchResponse.status}`);
-            }
-            const results = await searchResponse.json();
-            sendJson(res, results);
-        }
-        catch (error) {
-            console.error('Error searching brands:', error);
-            sendError(res, 'Failed to search brands');
-        }
-    },
-    // Fetch brand details including logos from Brandfetch
-    'GET /api/logo/brand/:domain': async (req, res, params) => {
-        const BRANDFETCH_API_KEY = process.env.BRANDFETCH_API_KEY;
-        if (!BRANDFETCH_API_KEY) {
-            return sendError(res, 'Brandfetch API key not configured', 503);
-        }
-        const domain = params.domain;
-        if (!domain) {
-            return sendError(res, 'No domain provided', 400);
-        }
-        try {
-            console.log('Fetching brand from Brandfetch:', domain);
-            const brandResponse = await fetch(`https://api.brandfetch.io/v2/brands/${encodeURIComponent(domain)}`, {
-                headers: {
-                    'Authorization': `Bearer ${BRANDFETCH_API_KEY}`
-                }
-            });
-            if (!brandResponse.ok) {
-                throw new Error(`Brandfetch brand fetch failed: ${brandResponse.status}`);
-            }
-            const brandData = await brandResponse.json();
-            sendJson(res, brandData);
-        }
-        catch (error) {
-            console.error('Error fetching brand:', error);
-            sendError(res, 'Failed to fetch brand');
-        }
-    },
-    // Process logo: fetch, add white background, resize to 165x112
-    'POST /api/logo/process': async (req, res) => {
-        try {
-            const body = await parseBody(req);
-            if (!body.url) {
-                return sendError(res, 'No URL provided', 400);
-            }
-            console.log('Fetching logo from:', body.url);
-            // Fetch the logo image
-            const response = await fetch(body.url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; AssetLibrary/1.0)'
-                }
-            });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            const arrayBuffer = await response.arrayBuffer();
-            const inputBuffer = Buffer.from(arrayBuffer);
-            let outputBuffer = inputBuffer;
-            // Process with Sharp if available
-            if (sharp) {
-                console.log('Processing logo with Sharp...');
-                const TARGET_WIDTH = 165;
-                const TARGET_HEIGHT = 112;
-                const PADDING = 12; // Padding around logo
-                // Calculate the area available for the logo (minus padding)
-                const logoMaxWidth = TARGET_WIDTH - (PADDING * 2);
-                const logoMaxHeight = TARGET_HEIGHT - (PADDING * 2);
-                // Process the image:
-                // 1. Flatten transparency to white background
-                // 2. Resize to fit within the logo area (maintaining aspect ratio)
-                // 3. Extend to exact dimensions with white background (adds padding)
-                const resizedLogo = await sharp(inputBuffer)
-                    .flatten({ background: { r: 255, g: 255, b: 255 } })
-                    .resize(logoMaxWidth, logoMaxHeight, {
-                    fit: 'inside',
-                    withoutEnlargement: false
-                })
-                    .toBuffer();
-                // Get dimensions of resized logo
-                const metadata = await sharp(resizedLogo).metadata();
-                const logoWidth = metadata.width || logoMaxWidth;
-                const logoHeight = metadata.height || logoMaxHeight;
-                // Calculate padding to center the logo
-                const leftPadding = Math.floor((TARGET_WIDTH - logoWidth) / 2);
-                const rightPadding = TARGET_WIDTH - logoWidth - leftPadding;
-                const topPadding = Math.floor((TARGET_HEIGHT - logoHeight) / 2);
-                const bottomPadding = TARGET_HEIGHT - logoHeight - topPadding;
-                // Extend to final dimensions with white background
-                outputBuffer = await sharp(resizedLogo)
-                    .extend({
-                    top: topPadding,
-                    bottom: bottomPadding,
-                    left: leftPadding,
-                    right: rightPadding,
-                    background: { r: 255, g: 255, b: 255 }
-                })
-                    .png()
-                    .toBuffer();
-                console.log('Logo processed: 165x112 with white background');
-            }
-            // Convert to base64 data URL
-            const base64 = outputBuffer.toString('base64');
-            const dataUrl = `data:image/png;base64,${base64}`;
-            console.log('Logo ready, size:', outputBuffer.length, 'bytes');
-            sendJson(res, { data: dataUrl });
-        }
-        catch (error) {
-            console.error('Error processing logo:', error);
-            sendError(res, 'Failed to fetch logo');
         }
     },
     // === AI IMAGE ANALYSIS ===
@@ -697,80 +603,81 @@ Respond ONLY with valid JSON in this exact format:
             sendError(res, 'Failed to analyze image');
         }
     },
-    // === GOOGLE IMAGE SEARCH ===
-    'GET /api/images/search': async (_req, res, _params, query) => {
-        const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-        const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
-        if (!GOOGLE_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) {
-            return sendError(res, 'Google Search API not configured', 503);
-        }
-        const searchQuery = query.q?.trim();
-        if (!searchQuery) {
-            return sendError(res, 'No search query provided', 400);
-        }
-        try {
-            console.log('Searching Google Images for:', searchQuery);
-            const params = new URLSearchParams({
-                key: GOOGLE_API_KEY,
-                cx: GOOGLE_SEARCH_ENGINE_ID,
-                q: searchQuery,
-                searchType: 'image',
-                num: '10',
-                safe: 'active'
-            });
-            const response = await fetch(`https://www.googleapis.com/customsearch/v1?${params}`);
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error('Google Search API error:', errorData);
-                throw new Error(`Google Search API error: ${response.status}`);
-            }
-            const data = await response.json();
-            // Transform results to a simpler format
-            const images = (data.items || []).map((item) => ({
-                title: item.title || '',
-                url: item.link || '',
-                thumbnail: item.image?.thumbnailLink || item.link || '',
-                width: item.image?.width || 0,
-                height: item.image?.height || 0,
-                source: item.displayLink || ''
-            }));
-            console.log(`Found ${images.length} images for: ${searchQuery}`);
-            sendJson(res, { images, query: searchQuery });
-        }
-        catch (error) {
-            console.error('Error searching images:', error);
-            sendError(res, 'Failed to search images');
-        }
-    },
-    // Process image from URL (fetch and convert to data URL)
-    'POST /api/images/process': async (req, res) => {
+    // === ANALYTICS ===
+    'POST /api/analytics/track': async (req, res) => {
         try {
             const body = await parseBody(req);
-            if (!body.url) {
-                return sendError(res, 'No URL provided', 400);
+            if (!body.event) {
+                return sendError(res, 'Event name required', 400);
             }
-            console.log('Fetching image from:', body.url);
-            const response = await fetch(body.url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; AssetLibrary/1.0)'
-                }
-            });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            const contentType = response.headers.get('content-type') || 'image/png';
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            // Convert to base64 data URL
-            const base64 = buffer.toString('base64');
-            const mimeType = contentType.split(';')[0].trim();
-            const dataUrl = `data:${mimeType};base64,${base64}`;
-            console.log('Image processed, size:', buffer.length, 'bytes');
-            sendJson(res, { data: dataUrl, size: buffer.length });
+            await pool.query(`INSERT INTO analytics (event, properties, session_id, url, created_at)
+                 VALUES ($1, $2, $3, $4, NOW())`, [
+                body.event,
+                JSON.stringify(body.properties || {}),
+                body.session_id || null,
+                body.url || null
+            ]);
+            sendJson(res, { success: true });
         }
         catch (error) {
-            console.error('Error processing image:', error);
-            sendError(res, 'Failed to fetch image');
+            console.error('Error tracking analytics:', error);
+            // Don't fail the request - analytics shouldn't break the app
+            sendJson(res, { success: false });
+        }
+    },
+    'GET /api/analytics/stats': async (_req, res) => {
+        try {
+            // Get actual database counts
+            const projectCount = await pool.query('SELECT COUNT(*) as count FROM projects');
+            const folderCount = await pool.query('SELECT COUNT(*) as count FROM folders');
+            const assetCount = await pool.query('SELECT COUNT(*) as count FROM assets');
+            const totalStorage = await pool.query('SELECT COALESCE(SUM(size), 0) as total FROM assets');
+            // Get event counts for the last 30 days
+            const eventCounts = await pool.query(`
+                SELECT event, COUNT(*) as count
+                FROM analytics
+                WHERE created_at > NOW() - INTERVAL '30 days'
+                GROUP BY event
+                ORDER BY count DESC
+            `);
+            // Get unique sessions (visitors) for the last 30 days
+            const uniqueSessions = await pool.query(`
+                SELECT COUNT(DISTINCT session_id) as count
+                FROM analytics
+                WHERE created_at > NOW() - INTERVAL '30 days'
+                  AND session_id IS NOT NULL
+            `);
+            // Get daily event counts for the last 14 days
+            const dailyEvents = await pool.query(`
+                SELECT DATE(created_at) as date, COUNT(*) as count
+                FROM analytics
+                WHERE created_at > NOW() - INTERVAL '14 days'
+                GROUP BY DATE(created_at)
+                ORDER BY date DESC
+            `);
+            // Get recent events (last 50)
+            const recentEvents = await pool.query(`
+                SELECT event, properties, session_id, url, created_at
+                FROM analytics
+                ORDER BY created_at DESC
+                LIMIT 50
+            `);
+            sendJson(res, {
+                // Database metrics
+                total_projects: parseInt(projectCount.rows[0]?.count || '0'),
+                total_folders: parseInt(folderCount.rows[0]?.count || '0'),
+                total_assets: parseInt(assetCount.rows[0]?.count || '0'),
+                total_storage: parseInt(totalStorage.rows[0]?.total || '0'),
+                // Event tracking
+                event_counts: eventCounts.rows,
+                unique_visitors: parseInt(uniqueSessions.rows[0]?.count || '0'),
+                daily_events: dailyEvents.rows,
+                recent_events: recentEvents.rows
+            });
+        }
+        catch (error) {
+            console.error('Error fetching analytics stats:', error);
+            sendError(res, 'Failed to fetch analytics stats');
         }
     },
     // === AI ICON GENERATION ===
@@ -785,21 +692,34 @@ Respond ONLY with valid JSON in this exact format:
             }
             const subject = body.subject.trim();
             console.log('Generating icon for:', subject);
-            // Build the prompt with the specific style
-            const prompt = `flat vector icon, soft rounded shapes, solid flat fills only, 4 distinct shades of grey, transparent background, no outlines, no strokes, no gradients, no shadows, no lighting effects, ${subject}, depth only from overlapping shapes, matte, minimal`;
+            // Build the prompt with the specific style - optimized for gpt-image-1
+            const prompt = `A flat vector icon of ${subject}. Style: soft rounded shapes, solid flat fills only, 4 distinct shades of grey, transparent background, no outlines, no strokes, no gradients, no shadows, no lighting effects, depth only from overlapping shapes, matte, minimal, centered composition.`;
             const response = await openai.images.generate({
-                model: 'dall-e-3',
+                model: 'gpt-image-1',
                 prompt: prompt,
                 n: 1,
                 size: '1024x1024',
-                quality: 'standard',
-                response_format: 'b64_json'
+                quality: 'low',
+                background: 'transparent',
+                output_format: 'png'
             });
             const imageData = response.data?.[0]?.b64_json;
             if (!imageData) {
                 throw new Error('No image data returned');
             }
-            const dataUrl = `data:image/png;base64,${imageData}`;
+            let finalBase64 = imageData;
+            // Resize to 512x512 and desaturate the image
+            if (sharp) {
+                const inputBuffer = Buffer.from(imageData, 'base64');
+                const processedBuffer = await sharp(inputBuffer)
+                    .resize(512, 512)
+                    .grayscale()
+                    .png({ compressionLevel: 9 })
+                    .toBuffer();
+                finalBase64 = processedBuffer.toString('base64');
+                console.log('Icon resized and desaturated successfully');
+            }
+            const dataUrl = `data:image/png;base64,${finalBase64}`;
             console.log('Icon generated successfully for:', subject);
             sendJson(res, {
                 data: dataUrl,

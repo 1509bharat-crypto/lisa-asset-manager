@@ -9,7 +9,7 @@ import {
   CreateProjectModal,
   EditProjectModal
 } from '../components/organisms'
-import { useProjects } from '../composables'
+import { useProjects, useRealtimeSync } from '../composables'
 import { analytics } from '../services/analytics'
 import type { Project } from '../types'
 
@@ -22,15 +22,19 @@ const {
   updateProject,
   deleteProject
 } = useProjects()
+const { on } = useRealtimeSync()
 
 const showCreateModal = ref(false)
 const projectToDelete = ref<string | null>(null)
 const projectToEdit = ref<(Project & { asset_count?: number }) | null>(null)
 
 onMounted(() => {
-  // Only fetch if no data yet (first load or hard refresh)
   fetchProjects()
 })
+
+// Re-fetch from database when server broadcasts changes
+on('projects_changed', () => fetchProjects(true))
+on('assets_changed', () => fetchProjects(true))
 
 const handleProjectClick = (id: string) => {
   const project = projects.value.find(p => p.id === id)
