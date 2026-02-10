@@ -404,7 +404,7 @@ const apiRoutes = {
         }
     },
     // Serve asset image directly (for <img src="">)
-    'GET /api/assets/:id/image': async (_req, res, params) => {
+    'GET /api/assets/:id/image': async (_req, res, params, query) => {
         try {
             if (!(0, validation_1.isValidUUID)(params.id)) {
                 res.writeHead(400);
@@ -428,10 +428,43 @@ const apiRoutes = {
             const mimeType = matches[1];
             const base64Data = matches[2];
             const buffer = Buffer.from(base64Data, 'base64');
+            // Format conversion
+            const requestedFormat = query.format;
+            const RASTER_FORMATS = ['png', 'jpg', 'webp'];
+            const formatMap = { jpg: 'jpeg', png: 'png', webp: 'webp' };
+            const mimeMap = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+            if (requestedFormat && RASTER_FORMATS.includes(requestedFormat) && sharp) {
+                try {
+                    const qualityOpts = {
+                        png: { compressionLevel: 0 },
+                        jpeg: { quality: 100, chromaSubsampling: '4:4:4' },
+                        webp: { quality: 100, lossless: true }
+                    };
+                    const fmt = formatMap[requestedFormat];
+                    // SVG→raster: render at high density then resize to 512x512
+                    const isSvg = mimeType === 'image/svg+xml';
+                    let pipeline = isSvg
+                        ? sharp(buffer, { density: 300 }).resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                        : sharp(buffer);
+                    const converted = await pipeline.toFormat(fmt, qualityOpts[fmt] || {}).toBuffer();
+                    res.writeHead(200, {
+                        'Content-Type': mimeMap[requestedFormat],
+                        'Content-Length': converted.length,
+                        'Cache-Control': 'public, max-age=31536000'
+                    });
+                    res.end(converted);
+                    return;
+                }
+                catch (conversionError) {
+                    console.error('Format conversion failed, serving original:', conversionError);
+                    // Fall through to serve original
+                }
+            }
+            // Serve original format
             res.writeHead(200, {
                 'Content-Type': mimeType,
                 'Content-Length': buffer.length,
-                'Cache-Control': 'public, max-age=31536000' // Cache for 1 year
+                'Cache-Control': 'public, max-age=31536000'
             });
             res.end(buffer);
         }

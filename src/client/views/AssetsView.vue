@@ -203,18 +203,24 @@ const handleBulkDelete = async () => {
   }
 }
 
+const bulkFormat = ref<string | undefined>(undefined)
+const showBulkFormatMenu = ref(false)
+
 const handleBulkDownload = async () => {
   const selectedAssetObjects = allAssets.value.filter(a => selectedAssets.value.includes(a.id))
   if (selectedAssetObjects.length === 0) return
 
   analytics.bulkDownload(selectedAssetObjects.length)
 
+  const formatSuffix = bulkFormat.value ? `?format=${bulkFormat.value}` : ''
+
   // Single file - just download directly
   if (selectedAssetObjects.length === 1) {
     const asset = selectedAssetObjects[0]
+    const filename = bulkFormat.value ? replaceExtension(asset.name, bulkFormat.value) : asset.name
     const link = document.createElement('a')
-    link.href = `/api/assets/${asset.id}/image`
-    link.download = asset.name
+    link.href = `/api/assets/${asset.id}/image${formatSuffix}`
+    link.download = filename
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -225,15 +231,13 @@ const handleBulkDownload = async () => {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
 
-  // Add each asset to the zip
   for (const asset of selectedAssetObjects) {
-    // Fetch image from API endpoint
-    const response = await fetch(`/api/assets/${asset.id}/image`)
+    const response = await fetch(`/api/assets/${asset.id}/image${formatSuffix}`)
     const blob = await response.blob()
-    zip.file(asset.name, blob)
+    const filename = bulkFormat.value ? replaceExtension(asset.name, bulkFormat.value) : asset.name
+    zip.file(filename, blob)
   }
 
-  // Generate and download the zip
   const zipBlob = await zip.generateAsync({ type: 'blob' })
   const url = URL.createObjectURL(zipBlob)
   const link = document.createElement('a')
@@ -256,12 +260,22 @@ const handleBulkMove = async (newProjectId: string, newFolderId: string | null) 
   showBulkMoveModal.value = false
 }
 
-const handleDownload = (asset: Asset) => {
+function replaceExtension(filename: string, format: string): string {
+  const extMap: Record<string, string> = { png: '.png', jpg: '.jpg', webp: '.webp', svg: '.svg' }
+  const newExt = extMap[format] || ''
+  const lastDot = filename.lastIndexOf('.')
+  if (lastDot === -1) return filename + newExt
+  return filename.substring(0, lastDot) + newExt
+}
+
+const handleDownload = (asset: Asset, format?: string) => {
   analytics.assetDownloaded(asset.id, asset.name)
-  // Create a download link from the API endpoint
+  let url = `/api/assets/${asset.id}/image`
+  if (format) url += `?format=${format}`
+  const filename = format ? replaceExtension(asset.name, format) : asset.name
   const link = document.createElement('a')
-  link.href = `/api/assets/${asset.id}/image`
-  link.download = asset.name
+  link.href = url
+  link.download = filename
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
@@ -395,7 +409,7 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
           @preview="(asset) => handleAssetSelect(asset.id, !selectedAssets.includes(asset.id))"
           @select="(id) => handleAssetSelect(id, !selectedAssets.includes(id))"
           @delete="(id) => { assetToDelete = id }"
-          @download="handleDownload"
+          @download="(asset, format) => handleDownload(asset, format)"
           @rename="(asset) => { assetToRename = asset }"
           @set-as-cover="handleSetAsCover"
           @move="(asset) => { assetToMove = asset }"
@@ -416,10 +430,22 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
       <div v-if="selectedAssets.length > 0" class="assets-view__bulk-toolbar">
         <span class="assets-view__bulk-count">{{ selectedAssets.length }} selected</span>
         <button @click="selectedAssets = []">Clear</button>
-        <button @click="handleBulkDownload">
-          <AppIcon name="download" :size="14" />
-          Download
-        </button>
+        <div class="assets-view__bulk-download-group">
+          <button @click="handleBulkDownload">
+            <AppIcon name="download" :size="14" />
+            Download{{ bulkFormat ? ` as ${bulkFormat.toUpperCase()}` : '' }}
+          </button>
+          <button class="assets-view__bulk-format-trigger" @click.stop="showBulkFormatMenu = !showBulkFormatMenu">
+            <AppIcon name="chevron-down" :size="12" />
+          </button>
+          <div v-if="showBulkFormatMenu" class="assets-view__bulk-format-dropdown">
+            <button @click="bulkFormat = undefined; showBulkFormatMenu = false">Original</button>
+            <button @click="bulkFormat = 'png'; showBulkFormatMenu = false">PNG</button>
+            <button @click="bulkFormat = 'jpg'; showBulkFormatMenu = false">JPG</button>
+            <button @click="bulkFormat = 'webp'; showBulkFormatMenu = false">WebP</button>
+            <button @click="bulkFormat = 'svg'; showBulkFormatMenu = false">SVG</button>
+          </div>
+        </div>
         <button @click="showBulkMoveModal = true">
           <AppIcon name="move" :size="14" />
           Move
@@ -666,6 +692,50 @@ const handleLogosAdd = async (logos: { dataUrl: string; brandName: string }[]) =
 
 .assets-view__bulk-toolbar button.danger:hover {
   opacity: 0.9;
+}
+
+.assets-view__bulk-download-group {
+  display: flex;
+  position: relative;
+}
+
+.assets-view__bulk-download-group > button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.assets-view__bulk-format-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  padding: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  margin-left: -1px;
+}
+
+.assets-view__bulk-format-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  min-width: 120px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 110;
+}
+
+.assets-view__bulk-format-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 8px 12px !important;
 }
 
 /* Slide up animation */

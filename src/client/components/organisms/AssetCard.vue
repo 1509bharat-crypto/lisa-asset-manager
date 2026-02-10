@@ -22,13 +22,37 @@ const emit = defineEmits<{
   click: []
   select: []
   delete: []
-  download: []
+  download: [format?: string]
   rename: []
   setAsCover: []
   move: []
 }>()
 
 const showMenu = ref(false)
+const showFormatMenu = ref(false)
+
+const availableFormats = computed(() => {
+  const sourceExt = props.asset.type === 'image/svg+xml' ? 'svg'
+    : props.asset.type.split('/')[1] || 'png'
+  const formats = [
+    { label: 'PNG', value: 'png' },
+    { label: 'JPG', value: 'jpg' },
+    { label: 'WebP', value: 'webp' },
+    { label: 'SVG', value: 'svg' }
+  ]
+  // Only show SVG option if source is SVG
+  const filtered = sourceExt === 'svg' ? formats : formats.filter(f => f.value !== 'svg')
+  return filtered.map(f => ({
+    ...f,
+    label: f.value === sourceExt || (f.value === 'jpg' && sourceExt === 'jpeg')
+      ? `${f.label} (Original)` : f.label
+  }))
+})
+
+const handleFormatDownload = (format: string) => {
+  emit('download', format)
+  showFormatMenu.value = false
+}
 
 const toggleMenu = (event: Event) => {
   event.stopPropagation()
@@ -85,8 +109,9 @@ const formattedType = computed(() => {
     variant="bordered"
     padding="none"
     clickable
-    :class="['asset-card', { 'asset-card--selected': selected }]"
+    :class="['asset-card', { 'asset-card--selected': selected, 'asset-card--menu-open': showMenu || showFormatMenu }]"
     @click="selectable ? emit('select') : emit('click')"
+    @mouseleave="showMenu = false; showFormatMenu = false"
   >
     <!-- Selection checkbox (visible on hover, or always when any item is selected) -->
     <div
@@ -127,9 +152,24 @@ const formattedType = computed(() => {
 
     <!-- Hover actions -->
     <div class="asset-card__actions">
-      <button class="asset-card__action asset-card__action--download" @click.stop="emit('download')" title="Download">
-        <AppIcon name="download" :size="16" />
-      </button>
+      <div class="asset-card__download-group">
+        <button class="asset-card__action asset-card__action--download" @click.stop="emit('download')" title="Download (original)">
+          <AppIcon name="download" :size="16" />
+        </button>
+        <button class="asset-card__action asset-card__action--format" @click.stop="showFormatMenu = !showFormatMenu" title="Download as...">
+          <AppIcon name="chevron-down" :size="12" />
+        </button>
+        <div v-if="showFormatMenu" class="asset-card__dropdown asset-card__dropdown--format" @click.stop>
+          <button
+            v-for="fmt in availableFormats"
+            :key="fmt.value"
+            class="asset-card__dropdown-item"
+            @click="handleFormatDownload(fmt.value)"
+          >
+            <span>{{ fmt.label }}</span>
+          </button>
+        </div>
+      </div>
       <div class="asset-card__menu-wrapper">
         <button class="asset-card__action asset-card__action--menu" @click="toggleMenu" title="More options">
           <AppIcon name="more-vertical" :size="16" />
@@ -155,9 +195,12 @@ const formattedType = computed(() => {
       </div>
     </div>
 
-    <!-- Click outside to close menu -->
-    <div v-if="showMenu" class="asset-card__backdrop" @click="closeMenu"></div>
   </AppCard>
+
+  <!-- Teleport backdrop to body so it's truly full-screen -->
+  <Teleport to="body">
+    <div v-if="showMenu || showFormatMenu" class="asset-card__backdrop" @click="closeMenu(); showFormatMenu = false"></div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -167,6 +210,11 @@ const formattedType = computed(() => {
   flex-direction: column;
   overflow: hidden;
   transition: all var(--transition-fast);
+}
+
+.asset-card--menu-open {
+  overflow: visible;
+  z-index: 60;
 }
 
 .asset-card:hover {
@@ -222,6 +270,7 @@ const formattedType = computed(() => {
   aspect-ratio: 1;
   background: var(--color-bg);
   overflow: hidden;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
 .asset-card__image {
@@ -312,6 +361,35 @@ const formattedType = computed(() => {
   border-color: var(--color-border-hover, #444);
 }
 
+/* Download group */
+.asset-card__download-group {
+  display: flex;
+  position: relative;
+}
+
+.asset-card__action--format {
+  width: 20px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+}
+
+.asset-card__action--download {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.asset-card__action--format:hover {
+  background: var(--accent-color, #4a9eff);
+  border-color: var(--accent-color, #4a9eff);
+  color: white;
+}
+
+.asset-card__dropdown--format {
+  left: 0;
+  right: auto;
+}
+
 /* Menu wrapper */
 .asset-card__menu-wrapper {
   position: relative;
@@ -370,7 +448,11 @@ const formattedType = computed(() => {
   background: rgba(239, 68, 68, 0.1);
 }
 
-/* Invisible backdrop to close menu on click outside */
+
+</style>
+
+<style>
+/* Global - backdrop is teleported to body */
 .asset-card__backdrop {
   position: fixed;
   inset: 0;

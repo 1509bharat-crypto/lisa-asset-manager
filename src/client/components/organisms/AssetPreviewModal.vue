@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { AppButton, AppCard, AppIcon, AppBadge } from '../atoms'
 import type { Asset } from '../../types'
 
@@ -10,8 +10,32 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   delete: [id: string]
-  download: [asset: Asset]
+  download: [asset: Asset, format?: string]
 }>()
+
+const showFormatMenu = ref(false)
+
+const availableFormats = computed(() => {
+  const sourceExt = props.asset.type === 'image/svg+xml' ? 'svg'
+    : props.asset.type.split('/')[1] || 'png'
+  const formats = [
+    { label: 'PNG', value: 'png' },
+    { label: 'JPG', value: 'jpg' },
+    { label: 'WebP', value: 'webp' },
+    { label: 'SVG', value: 'svg' }
+  ]
+  const filtered = sourceExt === 'svg' ? formats : formats.filter(f => f.value !== 'svg')
+  return filtered.map(f => ({
+    ...f,
+    label: f.value === sourceExt || (f.value === 'jpg' && sourceExt === 'jpeg')
+      ? `${f.label} (Original)` : f.label
+  }))
+})
+
+const handleFormatDownload = (format: string) => {
+  emit('download', props.asset, format)
+  showFormatMenu.value = false
+}
 
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return '0 B'
@@ -74,10 +98,25 @@ const fileExtension = computed(() => {
           </div>
 
           <div class="asset-preview__actions">
-            <AppButton variant="secondary" @click="emit('download', asset)">
-              <AppIcon name="download" :size="16" />
-              Download
-            </AppButton>
+            <div class="asset-preview__download-group">
+              <AppButton variant="secondary" @click="emit('download', asset)" class="asset-preview__download-btn">
+                <AppIcon name="download" :size="16" />
+                Download
+              </AppButton>
+              <button class="asset-preview__format-trigger" @click="showFormatMenu = !showFormatMenu" title="Download as...">
+                <AppIcon name="chevron-down" :size="14" />
+              </button>
+              <div v-if="showFormatMenu" class="asset-preview__format-dropdown">
+                <button
+                  v-for="fmt in availableFormats"
+                  :key="fmt.value"
+                  class="asset-preview__format-item"
+                  @click="handleFormatDownload(fmt.value)"
+                >
+                  {{ fmt.label }}
+                </button>
+              </div>
+            </div>
             <AppButton variant="danger" @click="emit('delete', asset.id)">
               <AppIcon name="trash" :size="16" />
               Delete
@@ -201,6 +240,68 @@ const fileExtension = computed(() => {
 
 .asset-preview__actions .app-button {
   flex: 1;
+}
+
+.asset-preview__download-group {
+  position: relative;
+  display: flex;
+  flex: 1;
+}
+
+.asset-preview__download-group .asset-preview__download-btn {
+  flex: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.asset-preview__format-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-left: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.asset-preview__format-trigger:hover {
+  background: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.asset-preview__format-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 100;
+}
+
+.asset-preview__format-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.asset-preview__format-item:hover {
+  background: var(--color-bg-input);
 }
 
 @keyframes fadeIn {

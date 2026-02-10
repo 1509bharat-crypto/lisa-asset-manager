@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   select: [id: string]
   delete: [id: string]
-  download: [asset: Asset]
+  download: [asset: Asset, format?: string]
   preview: [asset: Asset]
   rename: [asset: Asset]
   setAsCover: [asset: Asset]
@@ -81,7 +81,7 @@ const gridStyle = computed(() => ({
         @click="emit('preview', asset)"
         @select="emit('select', asset.id)"
         @delete="emit('delete', asset.id)"
-        @download="emit('download', asset)"
+        @download="(format?: string) => emit('download', asset, format)"
         @rename="emit('rename', asset)"
         @set-as-cover="emit('setAsCover', asset)"
         @move="emit('move', asset)"
