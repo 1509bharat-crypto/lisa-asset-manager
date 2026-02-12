@@ -804,6 +804,15 @@ Respond ONLY with valid JSON in this exact format:
                 ORDER BY date DESC
             `)
 
+            // Get daily event counts broken down by event type (for stacked chart)
+            const dailyBreakdown = await pool.query(`
+                SELECT DATE(created_at) as date, event, COUNT(*) as count
+                FROM analytics
+                WHERE created_at > NOW() - INTERVAL '14 days'
+                GROUP BY DATE(created_at), event
+                ORDER BY date ASC, event ASC
+            `)
+
             // Get recent events (last 50)
             const recentEvents = await pool.query(`
                 SELECT event, properties, session_id, url, created_at
@@ -822,6 +831,7 @@ Respond ONLY with valid JSON in this exact format:
                 event_counts: eventCounts.rows,
                 unique_visitors: parseInt(uniqueSessions.rows[0]?.count || '0'),
                 daily_events: dailyEvents.rows,
+                daily_breakdown: dailyBreakdown.rows,
                 recent_events: recentEvents.rows
             })
         } catch (error) {

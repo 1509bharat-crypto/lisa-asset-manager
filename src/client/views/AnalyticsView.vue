@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppSpinner, AppButton, AppIcon } from '../components/atoms'
+import { ActivityChart } from '../components/organisms'
 
 interface EventCount {
   event: string
@@ -10,6 +11,12 @@ interface EventCount {
 
 interface DailyEvent {
   date: string
+  count: string
+}
+
+interface DailyBreakdown {
+  date: string
+  event: string
   count: string
 }
 
@@ -31,6 +38,7 @@ interface AnalyticsStats {
   event_counts: EventCount[]
   unique_visitors: number
   daily_events: DailyEvent[]
+  daily_breakdown: DailyBreakdown[]
   recent_events: RecentEvent[]
 }
 
@@ -229,26 +237,12 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Daily Activity Chart (simple bar visualization) -->
-      <section class="analytics-view__section">
-        <h2>Daily Activity (14 days)</h2>
-        <div class="daily-chart">
-          <div
-            v-for="day in stats.daily_events"
-            :key="day.date"
-            class="daily-chart__bar-container"
-          >
-            <div
-              class="daily-chart__bar"
-              :style="{
-                height: `${Math.min(100, (parseInt(day.count) / Math.max(...stats.daily_events.map(d => parseInt(d.count)))) * 100)}%`
-              }"
-              :title="`${formatDate(day.date)}: ${day.count} events`"
-            />
-            <div class="daily-chart__label">{{ formatDate(day.date) }}</div>
-          </div>
-        </div>
-      </section>
+      <!-- Daily Activity Chart -->
+      <ActivityChart
+        :daily-events="stats.daily_events"
+        :daily-breakdown="stats.daily_breakdown || []"
+        :event-labels="eventLabels"
+      />
 
       <!-- Event Counts -->
       <section class="analytics-view__section">
@@ -475,38 +469,6 @@ onMounted(() => {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   margin: 0 0 var(--space-md) 0;
-}
-
-.daily-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-xs);
-  height: 120px;
-  padding-top: var(--space-md);
-}
-
-.daily-chart__bar-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-}
-
-.daily-chart__bar {
-  width: 100%;
-  max-width: 40px;
-  background: var(--color-primary);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  min-height: 4px;
-  transition: height 0.3s ease;
-}
-
-.daily-chart__label {
-  font-size: 10px;
-  color: var(--color-text-muted);
-  margin-top: var(--space-xs);
-  white-space: nowrap;
 }
 
 .event-list {

@@ -23,6 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@vitejs/plugin-vue": "^6.0.4",
+    "d3": "^7.9.0",
     "dotenv": "^16.3.1",
     "jszip": "^3.10.1",
     "lucide-vue-next": "^0.563.0",
@@ -33,6 +34,7 @@
     "vue-router": "^5.0.2"
   },
   "devDependencies": {
+    "@types/d3": "^7.4.3",
     "@types/node": "^20.10.0",
     "@types/pg": "^8.10.9",
     "tsx": "^4.7.0",
